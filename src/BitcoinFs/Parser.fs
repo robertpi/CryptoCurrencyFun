@@ -57,6 +57,10 @@ let decodeVariableLengthInt (bytes: byte[]) =
     | x when x = 0xffuy -> int64 (bytesToInt32 bytes.[1 .. 8]), 9
     | _ -> failwith "unexpectedly large byte :)"
 
+type Output =
+    { Value: int64
+      ChallengeScriptLength: int64
+      ChallengeScript: array<byte> }
 
 type Block =
     { Version: int
@@ -72,9 +76,21 @@ type Block =
       InputTransactionIndex: int
       ResponseScriptLength: int64
       ResponseScript: array<byte>
-      SequenceNumber: int }
+      SequenceNumber: int 
+      NumberOfOutputs: int64
+      Outputs: array<Output> }
 
 let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
+
+let readOutput offSet (bytesToProcess: array<byte>) =
+    let output = bytesToInt64 bytesToProcess.[offSet .. offSet + 7]
+    let challengeScriptLength, bytesUsed = decodeVariableLengthInt bytesToProcess.[offSet + 8 .. offSet + 16]
+    let offSet = offSet + 8 + bytesUsed
+    let bytesUsed = offSet + int challengeScriptLength
+    printfn "challengeScriptLength: %i bytesUsed: %i bytesToProcess.Length: %i" challengeScriptLength bytesUsed bytesToProcess.Length
+    { Value = output
+      ChallengeScriptLength = challengeScriptLength
+      ChallengeScript = bytesToProcess.[offSet .. bytesUsed - 1] }, bytesUsed
 
 let readMessage (e: IEnumerator<'a>) =
     let number = take 4 e
@@ -99,8 +115,18 @@ let readMessage (e: IEnumerator<'a>) =
     let responseScriptLength, bytesUsed = decodeVariableLengthInt bytesToProcess.[offSet + 36 .. offSet + 44]
     let offSet = offSet + 36 + bytesUsed
     let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
-    let responseScript = bytesToProcess.[offSet .. offSet + responseScriptLengthInt] 
-    let sequenceNumber = bytesToInt32 bytesToProcess.[offSet + responseScriptLengthInt + 1 .. offSet + responseScriptLengthInt + 3]
+    let responseScript = bytesToProcess.[offSet .. offSet + responseScriptLengthInt - 1] 
+    let sequenceNumber = bytesToInt32 bytesToProcess.[offSet + responseScriptLengthInt .. offSet + responseScriptLengthInt + 3]
+    let numberOfOutputs, bytesUsed = decodeVariableLengthInt bytesToProcess.[offSet + responseScriptLengthInt + 4 .. offSet + responseScriptLengthInt + 12]
+    let rec loop remainingOutputs offSet acc =
+        let output, offSet' = readOutput offSet bytesToProcess
+        let remainingOutputs' = remainingOutputs - 1
+        let acc' = output :: acc
+        if remainingOutputs' > 0 then
+            loop remainingOutputs' offSet' acc'
+        else
+            acc'
+    let outputs = loop (int numberOfOutputs) (offSet + responseScriptLengthInt + 4 + bytesUsed) []
     let block =
         { Version = version
           Hash = hash
@@ -115,7 +141,9 @@ let readMessage (e: IEnumerator<'a>) =
           InputTransactionIndex = inputTransactionIndex
           ResponseScriptLength = responseScriptLength
           ResponseScript = responseScript
-          SequenceNumber = sequenceNumber }
+          SequenceNumber = sequenceNumber
+          NumberOfOutputs = numberOfOutputs
+          Outputs = Array.ofList outputs }
 
     printfn "%A" block 
 
@@ -129,5 +157,5 @@ let readMessages maxMessages (byteStream: seq<byte>) =
 let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
 let stream = getByteStream target 
-readMessages 2 stream
+readMessages 1 stream
 
