@@ -57,6 +57,10 @@ let decodeVariableLengthInt (bytes: byte[]) =
     | x when x = 0xffuy -> int64 (bytesToInt32 bytes.[1 .. 8]), 9
     | _ -> failwith "unexpectedly large byte :)"
 
+type Output =
+    { Value: int64
+      ChallengeScriptLength: int64
+      ChallengeScript: array<byte> }
 
 type Block =
     { Version: int
@@ -72,9 +76,19 @@ type Block =
       InputTransactionIndex: int
       ResponseScriptLength: int64
       ResponseScript: array<byte>
-      SequenceNumber: int }
+      SequenceNumber: int 
+      NumberOfOutputs: int64
+      Outputs: array<Output> }
 
 let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
+
+let readOutput offSet (bytesToProcess: array<byte>) =
+    let output = bytesToInt64 bytesToProcess.[offSet .. offSet + 7]
+    let challengeScriptLength, bytesUsed = decodeVariableLengthInt bytesToProcess.[offSet + 8 .. offSet + 16]
+    let bytesUsed = offSet + 17 + int challengeScriptLength
+    { Value = output
+      ChallengeScriptLength = challengeScriptLength
+      ChallengeScript = bytesToProcess.[offSet + 17 .. bytesUsed] }, bytesUsed
 
 let readMessage (e: IEnumerator<'a>) =
     let number = take 4 e
@@ -101,6 +115,15 @@ let readMessage (e: IEnumerator<'a>) =
     let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
     let responseScript = bytesToProcess.[offSet .. offSet + responseScriptLengthInt] 
     let sequenceNumber = bytesToInt32 bytesToProcess.[offSet + responseScriptLengthInt + 1 .. offSet + responseScriptLengthInt + 3]
+    let numberOfOutputs, bytesUsed = decodeVariableLengthInt bytesToProcess.[offSet + responseScriptLengthInt + 4 .. offSet + responseScriptLengthInt + 12]
+    let rec loop remainingOutputs offSet acc =
+        let output, offSet' = readOutput offSet bytesToProcess
+        let remainingOutputs' = remainingOutputs - 1
+        if remainingOutputs' > 0 then
+            loop remainingOutputs' offSet' (output :: acc)
+        else
+            acc
+    let outputs = loop numberOfOutputs (offSet + responseScriptLengthInt + bytesUsed)
     let block =
         { Version = version
           Hash = hash
@@ -115,7 +138,9 @@ let readMessage (e: IEnumerator<'a>) =
           InputTransactionIndex = inputTransactionIndex
           ResponseScriptLength = responseScriptLength
           ResponseScript = responseScript
-          SequenceNumber = sequenceNumber }
+          SequenceNumber = sequenceNumber
+          NumberOfOutputs = numberOfOutputs
+          Outputs = Array.ofList outputs }
 
     printfn "%A" block 
 
