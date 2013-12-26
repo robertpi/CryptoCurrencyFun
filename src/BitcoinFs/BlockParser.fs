@@ -1,4 +1,4 @@
-module BitcoinFs.Parser
+module BitcoinFs.BlockParser
 open System.Collections.Generic
 open System
 open System.IO
@@ -91,7 +91,7 @@ let readOutput offSet (bytesToProcess: array<byte>) =
       ChallengeScriptLength = challengeScriptLength
       ChallengeScript = bytesToProcess.[offSet .. bytesUsed - 1] }, bytesUsed
 
-let readMessage (e: IEnumerator<'a>) =
+let readMessage (e: IEnumerator<byte>) =
     let number = take 4 e
     let gotMagicNumber = Seq.forall2 (=) magicNumber number
     if not gotMagicNumber then failwith "Error expected magicNumber, but it wasn't there"
