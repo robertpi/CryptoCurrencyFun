@@ -1,6 +1,6 @@
 module BitcoinFs.Parser
-open System
 open System.Collections.Generic
+open System
 open System.IO
 
 let getByteStream file =
@@ -87,7 +87,6 @@ let readOutput offSet (bytesToProcess: array<byte>) =
     let challengeScriptLength, bytesUsed = decodeVariableLengthInt bytesToProcess.[offSet + 8 .. offSet + 16]
     let offSet = offSet + 8 + bytesUsed
     let bytesUsed = offSet + int challengeScriptLength
-    printfn "challengeScriptLength: %i bytesUsed: %i bytesToProcess.Length: %i" challengeScriptLength bytesUsed bytesToProcess.Length
     { Value = output
       ChallengeScriptLength = challengeScriptLength
       ChallengeScript = bytesToProcess.[offSet .. bytesUsed - 1] }, bytesUsed
@@ -157,5 +156,5 @@ let readMessages maxMessages (byteStream: seq<byte>) =
 let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
 let stream = getByteStream target 
-readMessages 1 stream
+readMessages 3 stream
 
