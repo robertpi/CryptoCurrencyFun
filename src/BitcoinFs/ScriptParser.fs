@@ -1,21 +1,15 @@
 module BitcoinFs.ScriptParser
 
-type Vector2(b1, b2) =
-    member x.Bytes = [|b1;b2;|] 
-
-type Vector4(b1, b2, b3, b4) =
-    member x.Bytes = [|b1;b2;b3;b4;|] 
-
 type Ops =
     // Constants
-    | Op_False                              //   0   0x00    Nothing.    (empty value)   An empty array of bytes is pushed onto the stack. (This is not a no-op: an item is added to the stack.)
-    | Op_PushData of byte * array<byte>     //N/A     1-75    0x01-0x4b   (special)   data    The next opcode bytes is data to be pushed onto the stack
-    | Op_PushData1 of byte * array<byte>    //76  0x4c    (special)   data    The next byte contains the number of bytes to be pushed onto the stack.
+    | Op_False                              //0   0x00    Nothing.    (empty value)   An empty array of bytes is pushed onto the stack. (This is not a no-op: an item is added to the stack.)
+    | Op_PushData of Vector * array<byte>   //N/A     1-75    0x01-0x4b   (special)   data    The next opcode bytes is data to be pushed onto the stack
+    | Op_PushData1 of Vector * array<byte>  //76  0x4c    (special)   data    The next byte contains the number of bytes to be pushed onto the stack.
     | Op_PushData2 of Vector2 * array<byte> //77  0x4d    (special)   data    The next two bytes contain the number of bytes to be pushed onto the stack.
-    | Op_PushData4 of Vector2 * array<byte> //78  0x4e    (special)   data    The next four bytes contain the number of bytes to be pushed onto the stack.
+    | Op_PushData4 of Vector4 * array<byte> //78  0x4e    (special)   data    The next four bytes contain the number of bytes to be pushed onto the stack.
     | Op_1Negate                            //79  0x4f    Nothing.    -1  The number -1 is pushed onto the stack.
     | OP_True                               //81  0x51    Nothing.    1   The number 1 is pushed onto the stack.
-    | OP_PushConst of byte                  //82-96   0x52-0x60   Nothing.    2-16    The number in the word name (2-16) is pushed onto the stack. 
+    | OP_PushConst of Vector                  //82-96   0x52-0x60   Nothing.    2-16    The number in the word name (2-16) is pushed onto the stack. 
     //Flow control
     | Op_NOp                                //97  0x61    Nothing     Nothing     Does nothing.
     | Op_RShift                             //99  0x63    <expression> if [statements] [else [statements]]* endif     If the top stack value is not 0, the statements are executed. The top stack value is removed.
@@ -108,3 +102,19 @@ type Ops =
     | Op_Reserved1                          //137     0x89    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_Reserved2                          //138     0x8a    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_NOpx                               //176-185    0xb0-0xb9   The word is ignored.
+
+let parseScript (script: array<byte>)  =
+    let rec innerParse index acc =
+        match script.[index] with
+        | x when x = 0uy -> innerParse (index + 1) (Op_False :: acc)
+        | x when 1uy <= x && x <= 75uy -> 
+            let index' = index + 1
+            let v = Vector(x)
+            innerParse (index' + v.AsInt32 + 1) (Op_PushData(v, script.[index' .. index' + v.AsInt32]) :: acc)
+        | x when x = 76uy -> 
+            let index' = index + 1
+            let bytes = script.[index']
+            let v = Vector(bytes)
+            innerParse (index' + v.AsInt32 + 1) (Op_PushData1(v, script.[index' .. index' + v.AsInt32]) :: acc)
+        | _ -> failwith "invalid op code"
+    innerParse 0 []

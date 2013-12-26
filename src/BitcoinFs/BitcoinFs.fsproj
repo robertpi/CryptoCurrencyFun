@@ -49,6 +49,7 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
+    <Compile Include="Misc.fs" />
     <Compile Include="ScriptParser.fs" />
     <Compile Include="BlockParser.fs" />
   </ItemGroup>
