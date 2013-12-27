@@ -1,11 +1,13 @@
 module BitcoinFs.BlockParser
 open System
 open System.Collections.Generic
+open BitcoinFs.ScriptParser
 
 type Output =
     { Value: int64
       ChallengeScriptLength: int64
-      ChallengeScript: array<byte> }
+      ChallengeScript: array<byte>
+      ParsedChallengeScript: array<Op> }
 
 type Block =
     { Version: int
@@ -21,6 +23,7 @@ type Block =
       InputTransactionIndex: int
       ResponseScriptLength: int64
       ResponseScript: array<byte>
+      ParsedResponseScript: array<Op>
       SequenceNumber: int 
       NumberOfOutputs: int64
       Outputs: array<Output> }
@@ -32,15 +35,20 @@ let readOutput offSet (bytesToProcess: array<byte>) =
     let challengeScriptLength, bytesUsed = Conversion.decodeVariableLengthInt bytesToProcess.[offSet + 8 .. offSet + 16]
     let offSet = offSet + 8 + bytesUsed
     let bytesUsed = offSet + int challengeScriptLength
+    let script = bytesToProcess.[offSet .. bytesUsed - 1]
     { Value = output
       ChallengeScriptLength = challengeScriptLength
-      ChallengeScript = bytesToProcess.[offSet .. bytesUsed - 1] }, bytesUsed
+      ChallengeScript =  script
+      ParsedChallengeScript = parseScript script |> Array.ofList }, bytesUsed
 
-let readMessage (e: IEnumerator<byte>) =
+let readMessageHeader (e: IEnumerator<byte>) =
     let number = Enumerator.take 4 e
     let gotMagicNumber = Seq.forall2 (=) magicNumber number
     if not gotMagicNumber then failwith "Error expected magicNumber, but it wasn't there"
     let bytesInBlock = Enumerator.take 4 e |> Conversion.bytesToInt32
+    bytesInBlock
+
+let readMessage bytesInBlock (e: IEnumerator<byte>) =
     let bytesToProcess = Enumerator.take bytesInBlock e
     let version = Conversion.bytesToInt32 bytesToProcess.[0 .. 3]
     let hash = bytesToProcess.[4 .. 35]
@@ -85,21 +93,23 @@ let readMessage (e: IEnumerator<byte>) =
           InputTransactionIndex = inputTransactionIndex
           ResponseScriptLength = responseScriptLength
           ResponseScript = responseScript
+          ParsedResponseScript = parseScript responseScript |> Array.ofList 
           SequenceNumber = sequenceNumber
           NumberOfOutputs = numberOfOutputs
           Outputs = Array.ofList outputs }
 
-    printfn "%A" block 
+    block 
 
-let readMessages maxMessages (byteStream: seq<byte>) =
-    use e = EnumeratorObserver.Create(byteStream.GetEnumerator()) 
-    let messagesProcessed = ref 0
-    while e.MoreAvailable && !messagesProcessed < maxMessages do
-        readMessage (e :> IEnumerator<byte>)
-        incr messagesProcessed
+let readMessages firstMessageIndex lastMessageIndex (byteStream: seq<byte>) =
+    seq { use e = EnumeratorObserver.Create(byteStream.GetEnumerator()) 
+          let messagesProcessed = ref 0
+          while e.MoreAvailable && !messagesProcessed < lastMessageIndex do
+            let bytesToProcess = readMessageHeader e
+            if firstMessageIndex <= !messagesProcessed then 
+                yield readMessage bytesToProcess e
+            else
+                Enumerator.skip bytesToProcess e
+            incr messagesProcessed }
+    
 
-let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
-
-let stream = File.getByteStream target 
-readMessages 3 stream
 

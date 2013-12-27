@@ -1,15 +1,15 @@
 module BitcoinFs.ScriptParser
 
-type Ops =
+type Op =
     // Constants
     | Op_False                              //0   0x00    Nothing.    (empty value)   An empty array of bytes is pushed onto the stack. (This is not a no-op: an item is added to the stack.)
-    | Op_PushData of Vector * array<byte>   //N/A     1-75    0x01-0x4b   (special)   data    The next opcode bytes is data to be pushed onto the stack
-    | Op_PushData1 of Vector * array<byte>  //76  0x4c    (special)   data    The next byte contains the number of bytes to be pushed onto the stack.
-    | Op_PushData2 of Vector2 * array<byte> //77  0x4d    (special)   data    The next two bytes contain the number of bytes to be pushed onto the stack.
-    | Op_PushData4 of Vector4 * array<byte> //78  0x4e    (special)   data    The next four bytes contain the number of bytes to be pushed onto the stack.
+    | Op_PushData of IVector * array<byte>   //N/A     1-75    0x01-0x4b   (special)   data    The next opcode bytes is data to be pushed onto the stack
+    | Op_PushData1 of IVector * array<byte>  //76  0x4c    (special)   data    The next byte contains the number of bytes to be pushed onto the stack.
+    | Op_PushData2 of IVector * array<byte>  //77  0x4d    (special)   data    The next two bytes contain the number of bytes to be pushed onto the stack.
+    | Op_PushData4 of IVector * array<byte>  //78  0x4e    (special)   data    The next four bytes contain the number of bytes to be pushed onto the stack.
     | Op_1Negate                            //79  0x4f    Nothing.    -1  The number -1 is pushed onto the stack.
     | OP_True                               //81  0x51    Nothing.    1   The number 1 is pushed onto the stack.
-    | OP_PushConst of Vector                  //82-96   0x52-0x60   Nothing.    2-16    The number in the word name (2-16) is pushed onto the stack. 
+    | OP_PushConst of IVector                  //82-96   0x52-0x60   Nothing.    2-16    The number in the word name (2-16) is pushed onto the stack. 
     //Flow control
     | Op_NOp                                //97  0x61    Nothing     Nothing     Does nothing.
     | Op_RShift                             //99  0x63    <expression> if [statements] [else [statements]]* endif     If the top stack value is not 0, the statements are executed. The top stack value is removed.
@@ -68,7 +68,7 @@ type Ops =
     | Op_BitLShift                          //152     0x98    a b     out     Shifts a left b bits, preserving sign. disabled.
     | Op_BitRShift                          //153     0x99    a b     out     Shifts a right b bits, preserving sign. disabled.
     | Op_BoolAnd                            //154     0x9a    a b     out     If both a and b are not 0, the output is 1. Otherwise 0.
-    | Op_BollOr                             //155     0x9b    a b     out     If a or b is not 0, the output is 1. Otherwise 0.
+    | Op_BoolOr                             //155     0x9b    a b     out     If a or b is not 0, the output is 1. Otherwise 0.
     | Op_NumEqual                           //156     0x9c    a b     out     Returns 1 if the numbers are equal, 0 otherwise.
     | Op_NumEqualVefify                     //157     0x9d    a b     out     Same as OP_NUMEQUAL, but runs OP_VERIFY afterward.
     | Op_NumNotEqual                        //158     0x9e    a b     out     Returns 1 if the numbers are not equal, 0 otherwise.
@@ -97,24 +97,140 @@ type Ops =
     //Reserved words
     | Op_Reserved                           //80  0x50    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_Ver                                //98  0x62    Transaction is invalid unless occuring in an unexecuted OP_IF branch
-    | Op_Verif                              //101     0x65    Transaction is invalid even when occuring in an unexecuted OP_IF branch
+    | Op_VerIf                              //101     0x65    Transaction is invalid even when occuring in an unexecuted OP_IF branch
     | Op_VerNofIf                           //102     0x66    Transaction is invalid even when occuring in an unexecuted OP_IF branch
     | Op_Reserved1                          //137     0x89    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_Reserved2                          //138     0x8a    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_NOpx                               //176-185    0xb0-0xb9   The word is ignored.
 
+let opCodeTable =
+    [ (fun () -> Op_False),              0uy
+      (fun () -> Op_1Negate),            79uy
+      (fun () -> OP_True),               81uy
+      //Flow control
+      (fun () -> Op_NOp),                97uy
+      (fun () -> Op_RShift),             99uy
+      (fun () -> Op_NotIf),              100uy
+      (fun () -> Op_Else),               103uy
+      (fun () -> Op_EndIf),              104uy
+      (fun () -> Op_Verify),             105uy
+      (fun () -> Op_Return),             106uy
+      // Stack
+      (fun () -> Op_ToAltStack),         107uy
+      (fun () -> Op_FromAltStack),       108uy
+      (fun () -> Op_IfDup),              115uy
+      (fun () -> Op_Depth),              116uy
+      (fun () -> Op_Drop),               117uy
+      (fun () -> Op_Dup),                118uy
+      (fun () -> Op_Nip),                119uy
+      (fun () -> Op_Over),               120uy
+      (fun () -> Op_Pick),               121uy
+      (fun () -> Op_Roll),               122uy
+      (fun () -> Op_Rot),                123uy
+      (fun () -> Op_Swap),               124uy
+      (fun () -> Op_Tuck),               125uy
+      (fun () -> Op_2Drop),              109uy
+      (fun () -> Op_2Dup),               110uy
+      (fun () -> Op_3Dup),               111uy
+      (fun () -> Op_2Over),              112uy
+      (fun () -> Op_2Rot),               113uy
+      (fun () -> Op_2Swap),              114uy
+      //Splice
+      (fun () -> Op_Cat),                126uy
+      (fun () -> Op_SubStr),             127uy
+      (fun () -> Op_Left),               128uy
+      (fun () -> Op_Right),              129uy
+      (fun () -> Op_Size),               130uy
+      //Bitwise logic
+      (fun () -> Op_Invert),             131uy
+      (fun () -> Op_And),                132uy
+      (fun () -> Op_Or),                 133uy
+      (fun () -> Op_Xor),                134uy
+      (fun () -> Op_Equal),              135uy
+      (fun () -> Op_EqualVerify),        136uy
+      //Arithmetic
+      (fun () -> Op_1Add),               139uy
+      (fun () -> Op_1Sub),               140uy
+      (fun () -> Op_2Mul),               141uy
+      (fun () -> Op_2Div),               142uy
+      (fun () -> Op_Negate),             143uy
+      (fun () -> Op_Abs),                144uy
+      (fun () -> Op_Not),                145uy
+      (fun () -> Op_0NotEqual),          146uy
+      (fun () -> Op_Add),                147uy
+      (fun () -> Op_Sub),                148uy
+      (fun () -> Op_Mul),                149uy
+      (fun () -> Op_Div),                150uy
+      (fun () -> Op_Mod),                151uy
+      (fun () -> Op_BitLShift),          152uy
+      (fun () -> Op_BitRShift),          153uy
+      (fun () -> Op_BoolAnd),            154uy
+      (fun () -> Op_BoolOr),             155uy
+      (fun () -> Op_NumEqual),           156uy
+      (fun () -> Op_NumEqualVefify),     157uy
+      (fun () -> Op_NumNotEqual),        158uy
+      (fun () -> Op_LessThan),           159uy
+      (fun () -> Op_GreaterThan),        160uy
+      (fun () -> Op_LessThanOrEqual),    161uy
+      (fun () -> Op_GreaterThanOrEqual), 162uy
+      (fun () -> Op_Min),                163uy
+      (fun () -> Op_Max),                164uy
+      (fun () -> Op_Within),             165uy
+      //Crypto
+      (fun () -> Op_RIPEMD160),          166uy
+      (fun () -> Op_SHA1),               167uy
+      (fun () -> Op_SHA256),             168uy
+      (fun () -> Op_HASH160),            169uy
+      (fun () -> Op_HASH256),            170uy
+      (fun () -> Op_CodeSeparator),      171uy  
+      (fun () -> Op_CheckSig),           172uy  
+      (fun () -> Op_CheckSigVerify),     173uy  
+      (fun () -> Op_CheckMultisig),      174uy  
+      (fun () -> Op_CheckMultisigVerify),175uy  
+      //Pseudo-words
+      (fun () -> Op_PubkeyHash),         253uy  
+      (fun () -> Op_Pubkey),             254uy  
+      (fun () -> Op_InvalidOpcode),      255uy  
+      //Reserved words
+      (fun () -> Op_Reserved),           80uy   
+      (fun () -> Op_Ver),                98uy   
+      (fun () -> Op_VerIf),              101uy  
+      (fun () -> Op_VerNofIf),           102uy  
+      (fun () -> Op_Reserved1),          137uy  
+      (fun () -> Op_Reserved2),          138uy ]
+    |> Seq.map (fun (x,y) -> y,x) // realized too late I'd build the table the wrong way round ...
+    |> Map.ofSeq
+
+
 let parseScript (script: array<byte>)  =
+    let makePushDataOp index (v: IVector) opConst =
+        let nextIndex = index + 1
+        opConst(v, script.[nextIndex .. nextIndex + v.AsInt32 - 1]), nextIndex + v.AsInt32
     let rec innerParse index acc =
-        match script.[index] with
-        | x when x = 0uy -> innerParse (index + 1) (Op_False :: acc)
-        | x when 1uy <= x && x <= 75uy -> 
-            let index' = index + 1
-            let v = Vector(x)
-            innerParse (index' + v.AsInt32 + 1) (Op_PushData(v, script.[index' .. index' + v.AsInt32]) :: acc)
-        | x when x = 76uy -> 
-            let index' = index + 1
-            let bytes = script.[index']
-            let v = Vector(bytes)
-            innerParse (index' + v.AsInt32 + 1) (Op_PushData1(v, script.[index' .. index' + v.AsInt32]) :: acc)
-        | _ -> failwith "invalid op code"
+        if index >= script.Length then acc
+        else
+            //printfn "index %i opcode %i" index script.[index]
+            match script.[index] with
+            | x when opCodeTable.ContainsKey(x) -> innerParse (index + 1) (opCodeTable.[x]() :: acc)
+            | x when 1uy <= x && x <= 75uy -> 
+                let v = Vector(x)
+                let op, nextIndex = makePushDataOp index v (fun (v, data) -> Op_PushData(v, data))
+                innerParse nextIndex (op :: acc)
+            | x when x = 76uy -> 
+                let nextIndex = index + 1
+                let bytes = script.[nextIndex]
+                let v = Vector(bytes) :> IVector
+                let op, nextIndex = makePushDataOp nextIndex v (fun (v, data) -> Op_PushData1(v, data))
+                innerParse nextIndex (op :: acc)
+            | x when x = 77uy -> 
+                let v = Vector2(script.[index + 1], script.[index + 2]) :> IVector
+                let op, nextIndex = makePushDataOp (index + 2) v (fun (v, data) -> Op_PushData2(v, data))
+                innerParse nextIndex (op :: acc)
+            | x when x = 78uy -> 
+                let v = Vector4(script.[index + 1], script.[index + 2], script.[index + 3], script.[index + 4]) :> IVector
+                let op, nextIndex = makePushDataOp (index + 4) v (fun (v, data) -> Op_PushData4(v, data))
+                innerParse nextIndex (op :: acc)
+            | x when 82uy <= x && x <= 96uy -> innerParse (index + 1) (OP_PushConst(Vector(x - 80uy) :> IVector) :: acc)
+            | x when 176uy <= x && x <= 185uy -> innerParse (index + 1) (Op_NOpx :: acc)
+            | _ -> failwith "invalid op code"
     innerParse 0 []
