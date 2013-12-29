@@ -1,3 +1,6 @@
 [submodule ".themes/murky-mussels"]
 	path = .themes/murky-mussels
 	url = git://github.com/octothemes/murky-mussels.git
+[submodule ".themes/callback-cockles"]
+	path = .themes/callback-cockles
+	url = git://github.com/octothemes/callback-cockles.git
