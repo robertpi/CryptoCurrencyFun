@@ -54,7 +54,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\BitcoinFs\BitcoinFs.fsproj">
+    <ProjectReference Include="..\..\..\src\app\BitcoinFs\BitcoinFs.fsproj">
       <Name>BitcoinFs</Name>
       <Project>{d2aaa59c-8762-4f67-9fc2-ad015a4295fb}</Project>
       <Private>True</Private>

@@ -6,17 +6,16 @@ open Fake
 // Directories
 let buildDir  = "./build/"
 let testDir   = "./tests/"
-let deployDir = "./deploy/"
 
 // Filesets
 let appReferences  = 
-    !! "src/**/*.fsproj"
+    !! "src/app/**/*.fsproj"
 
 let testReferences = !! "src/tests/**/*.fsproj"
 
 // The clean target cleans the build and deploy folders
 Target "Clean" (fun _ -> 
-    CleanDirs ["./build/"; "./deploy/"]
+    CleanDirs [buildDir; testDir]
 )
 
 Target "BuildApp" (fun _ ->
