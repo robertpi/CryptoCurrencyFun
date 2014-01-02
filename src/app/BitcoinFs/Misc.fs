@@ -56,10 +56,10 @@ module Conversion =
             Seq.zip parts [0;8;16;24]
             |> Seq.sumBy (fun (a,b) -> uint32 a <<< b)
     let bytesToInt64 (parts: seq<byte>) =
-            Seq.zip parts [0;8;16;24]
+            Seq.zip parts (List.init 8 (fun x -> x * 8))
             |> Seq.sumBy (fun (a,b) -> int64 a <<< b)
     let bytesToUInt64 (parts: seq<byte>) =
-            Seq.zip parts [0;8;16;24]
+            Seq.zip parts (List.init 8 (fun x -> x * 8))
             |> Seq.sumBy (fun (a,b) -> uint64 a <<< b)
 
     let unixEpoc = new DateTime(1970, 1, 1)

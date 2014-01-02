@@ -30,6 +30,10 @@ type Block =
 
 let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
 
+// 0uy; 0uy; 0uy; 1uy; 42uy; 5uy; 242uy; 0uy
+//                 
+// 0x000000012a05f200
+
 let readOutput offSet (bytesToProcess: array<byte>) =
     let output = Conversion.bytesToInt64 bytesToProcess.[offSet .. offSet + 7]
     let challengeScriptLength, bytesUsed = Conversion.decodeVariableLengthInt bytesToProcess.[offSet + 8 .. offSet + 16]
