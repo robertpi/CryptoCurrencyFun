@@ -35,12 +35,15 @@ module Enumerator =
     let take count (e: IEnumerator<'a>) =
         let buffer: array<'a> = Array.zeroCreate count
 
+        let mutable readBytes = 0 
         for x in 0 .. count - 1 do
-                  if not (e.MoveNext()) then
-                      failwith "no more data available in stream"
-                  buffer.[x] <- e.Current
+            if e.MoveNext() then
+                readBytes  <- readBytes + 1
+                buffer.[x] <- e.Current
 
-        buffer
+        if readBytes = count then buffer
+        elif readBytes = 0 then Array.zeroCreate 0
+        else buffer.[0 .. readBytes - 1]
 
 module Conversion =
     let bytesToInt16 (parts: seq<byte>) =

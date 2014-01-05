@@ -5,9 +5,10 @@ open BitcoinFs.ScriptParser
 
 type Output =
     { Value: int64
-      ChallengeScriptLength: int64
-      ChallengeScript: array<byte>
-      ParsedChallengeScript: array<Op> }
+      OutputScriptLength: int64
+      OutputScript: array<byte>
+      ParsedOutputScript: array<Op>
+      CanonicalOutputScript: option<CanonicalOutputScript> }
 
 type Block =
     { Version: int
@@ -30,27 +31,27 @@ type Block =
 
 let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
 
-// 0uy; 0uy; 0uy; 1uy; 42uy; 5uy; 242uy; 0uy
-//                 
-// 0x000000012a05f200
-
 let readOutput offSet (bytesToProcess: array<byte>) =
     let output = Conversion.bytesToInt64 bytesToProcess.[offSet .. offSet + 7]
     let challengeScriptLength, bytesUsed = Conversion.decodeVariableLengthInt bytesToProcess.[offSet + 8 .. offSet + 16]
     let offSet = offSet + 8 + bytesUsed
     let bytesUsed = offSet + int challengeScriptLength
     let script = bytesToProcess.[offSet .. bytesUsed - 1]
+    let parsedScript = parseScript script |> Array.ofList
     { Value = output
-      ChallengeScriptLength = challengeScriptLength
-      ChallengeScript =  script
-      ParsedChallengeScript = parseScript script |> Array.ofList }, bytesUsed
+      OutputScriptLength = challengeScriptLength
+      OutputScript =  script
+      ParsedOutputScript = parsedScript
+      CanonicalOutputScript = ScriptParser.parseStandardOutputScript parsedScript }, bytesUsed
 
 let readMessageHeader (e: IEnumerator<byte>) =
     let number = Enumerator.take 4 e
-    let gotMagicNumber = Seq.forall2 (=) magicNumber number
-    if not gotMagicNumber then failwith "Error expected magicNumber, but it wasn't there"
-    let bytesInBlock = Enumerator.take 4 e |> Conversion.bytesToInt32
-    bytesInBlock
+    if number.Length = 0 then -1
+    else
+        let gotMagicNumber = Seq.forall2 (=) magicNumber number
+        if not gotMagicNumber then failwith "Error expected magicNumber, but it wasn't there"
+        let bytesInBlock = Enumerator.take 4 e |> Conversion.bytesToInt32
+        bytesInBlock
 
 let readMessage bytesInBlock (e: IEnumerator<byte>) =
     let bytesToProcess = Enumerator.take bytesInBlock e
@@ -109,11 +110,19 @@ let readMessages firstMessageIndex lastMessageIndex (byteStream: seq<byte>) =
           let messagesProcessed = ref 0
           while e.MoreAvailable && !messagesProcessed < lastMessageIndex do
             let bytesToProcess = readMessageHeader e
-            if firstMessageIndex <= !messagesProcessed then 
-                yield readMessage bytesToProcess e
-            else
-                Enumerator.skip bytesToProcess e
-            incr messagesProcessed }
+            if bytesToProcess > 0 then
+                if firstMessageIndex <= !messagesProcessed then 
+                    yield readMessage bytesToProcess e
+                else
+                    Enumerator.skip bytesToProcess e
+                incr messagesProcessed }
+    
+let readAllMessages (byteStream: seq<byte>) =
+    seq { use e = EnumeratorObserver.Create(byteStream.GetEnumerator()) 
+          while e.MoreAvailable do
+            let bytesToProcess = readMessageHeader e
+            if bytesToProcess > 0 then
+                yield readMessage bytesToProcess e }
     
 
 
