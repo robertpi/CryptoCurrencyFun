@@ -12,6 +12,13 @@ module File =
                   read := stream.Read(buffer, 0, buffer.Length)
                   yield! buffer.[0 .. !read - 1] }
 
+module Directory =
+    let getByteStreamOfFiles dir spec =
+        seq { let files = Directory.GetFiles(dir, spec)
+              for file in files do
+                  yield! File.getByteStream file }
+
+
 type EnumeratorObserver<'a> (e: IEnumerator<'a>) = 
     let mutable moreAvailable = true
     interface System.Collections.IEnumerator with 
@@ -46,34 +53,45 @@ module Enumerator =
         else buffer.[0 .. readBytes - 1]
 
 module Conversion =
-    let bytesToInt16 (parts: seq<byte>) =
-            Seq.zip parts [0;8]
-            |> Seq.sumBy (fun (a,b) -> int16 a <<< b)
-    let bytesToUInt16 (parts: seq<byte>) =
-            Seq.zip parts [0;8]
-            |> Seq.sumBy (fun (a,b) -> uint16 a <<< b)
-    let bytesToInt32 (parts: seq<byte>) =
-            Seq.zip parts [0;8;16;24]
-            |> Seq.sumBy (fun (a,b) -> int a <<< b)
-    let bytesToUInt32 (parts: seq<byte>) =
-            Seq.zip parts [0;8;16;24]
-            |> Seq.sumBy (fun (a,b) -> uint32 a <<< b)
-    let bytesToInt64 (parts: seq<byte>) =
-            Seq.zip parts (List.init 8 (fun x -> x * 8))
-            |> Seq.sumBy (fun (a,b) -> int64 a <<< b)
-    let bytesToUInt64 (parts: seq<byte>) =
-            Seq.zip parts (List.init 8 (fun x -> x * 8))
-            |> Seq.sumBy (fun (a,b) -> uint64 a <<< b)
+    let private bitShifts = Array.init 8 (fun x -> x * 8)
+    let inline private genericConvert toInt startIndex length (parts: array<byte>) =
+        seq { for i in 0 .. length - 1 do
+                yield toInt parts.[startIndex + i] <<< bitShifts.[i] }
+        |> Seq.sum, startIndex + length
+
+    let bytesToInt16 startIndex (parts: array<byte>) =
+        genericConvert int16 startIndex 2 parts
+
+    let bytesToUInt16 startIndex (parts: array<byte>) =
+        genericConvert uint16 startIndex 2 parts
+
+    let bytesToInt32 startIndex (parts: array<byte>) =
+        genericConvert int startIndex 4 parts
+
+    let bytesToUInt32 startIndex (parts: array<byte>) =
+        genericConvert uint32 startIndex 4 parts
+
+    let bytesToInt64 startIndex (parts: array<byte>) =
+        genericConvert int64 startIndex 8 parts
+
+    let bytesToUInt64 startIndex (parts: array<byte>) =
+        genericConvert uint64 startIndex 8 parts
 
     let unixEpoc = new DateTime(1970, 1, 1)
     let dateTimeOfUnixEpoc (i: int) = unixEpoc.AddSeconds(float i)
 
-    let decodeVariableLengthInt (bytes: byte[]) =
-        match bytes.[0] with
-        | x when x < 0xfduy -> int64 x, 1
-        | x when x = 0xfduy -> int64 (bytesToInt16 bytes.[1 .. 2]), 3
-        | x when x = 0xfeuy -> int64 (bytesToInt32 bytes.[1 .. 4]), 5
-        | x when x = 0xffuy -> int64 (bytesToInt32 bytes.[1 .. 8]), 9
+    let decodeVariableLengthInt startIndex (bytes: byte[]) =
+        match bytes.[startIndex] with
+        | x when x < 0xfduy -> int64 x, startIndex + 1
+        | x when x = 0xfduy -> 
+            let res, offSet =  (bytesToInt16 startIndex bytes)
+            int64 res, offSet
+        | x when x = 0xfeuy -> 
+            let res, offSet =  (bytesToInt32 startIndex bytes)
+            int64 res, offSet
+        | x when x = 0xffuy ->
+            let res, offSet =  (bytesToInt64 startIndex bytes)
+            int64 res, offSet
         | _ -> failwith "unexpectedly large byte :)"
 
 [<Interface>]
@@ -96,7 +114,7 @@ type Vector(b1) =
 type Vector2(b1, b2) =
     member x.Bytes = [|b1;b2;|] 
     member x.AsInt32 =
-        let rawUInt16 = Conversion.bytesToUInt16 x.Bytes
+        let rawUInt16, _ = Conversion.bytesToUInt16 0 x.Bytes
         if rawUInt16 >= 0x8000us then
             (int (rawUInt16 &&& 0x8000us)) * -1
         else
@@ -110,7 +128,7 @@ type Vector2(b1, b2) =
 type Vector4(b1, b2, b3, b4) =
     member x.Bytes = [|b1;b2;b3;b4;|] 
     member x.AsInt32 =
-        let rawUInt32 = Conversion.bytesToUInt32 x.Bytes
+        let rawUInt32, _ = Conversion.bytesToUInt32 0 x.Bytes
         if rawUInt32 >= 0x80000000u then
             (int (rawUInt32 &&& 0x80000000u)) * -1
         else

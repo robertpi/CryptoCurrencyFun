@@ -94,7 +94,7 @@ type Op =
     //Pseudo-words
     | Op_PubkeyHash                         //253     0xfd    Represents a public key hashed with OP_HASH160.
     | Op_Pubkey                             //254     0xfe    Represents a public key compatible with OP_CHECKSIG.
-    | Op_InvalidOpcode                      //255     0xff    Matches any opcode that is not yet assigned.
+    | Op_InvalidOpcode of byte              //255     0xff    Matches any opcode that is not yet assigned.
     //Reserved words
     | Op_Reserved                           //80  0x50    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_Ver                                //98  0x62    Transaction is invalid unless occuring in an unexecuted OP_IF branch
@@ -198,7 +198,6 @@ module ScriptParser =
           //Pseudo-words
           (fun () -> Op_PubkeyHash),         253uy  
           (fun () -> Op_Pubkey),             254uy  
-          (fun () -> Op_InvalidOpcode),      255uy  
           //Reserved words
           (fun () -> Op_Reserved),           80uy   
           (fun () -> Op_Ver),                98uy   
@@ -213,8 +212,10 @@ module ScriptParser =
     let parseScript (script: array<byte>)  =
         let makePushDataOp index (v: IVector) opConst =
             let nextIndex = index + 1
+            //printfn "script.Length %i nextIndex %i (nextIndex + v.AsInt32 - 1) %i" script.Length nextIndex (nextIndex + v.AsInt32 - 1)
             opConst(v, script.[nextIndex .. nextIndex + v.AsInt32 - 1]), nextIndex + v.AsInt32
         let rec innerParse index acc =
+            //printfn "%A" acc
             if index >= script.Length then acc
             else
                 //printfn "index %i opcode %i" index script.[index]
@@ -240,7 +241,7 @@ module ScriptParser =
                     innerParse nextIndex (op :: acc)
                 | x when 82uy <= x && x <= 96uy -> innerParse (index + 1) (OP_PushConst(Vector(x - 80uy) :> IVector) :: acc)
                 | x when 176uy <= x && x <= 185uy -> innerParse (index + 1) (Op_NOpx :: acc)
-                | _ -> failwith "invalid op code"
+                | x -> innerParse (index + 1) (Op_InvalidOpcode x :: acc) // spec if a little unclear if just 255 is Op_InvalidOpcode, or all other unassigned
         innerParse 0 [] |> List.rev
 
     let bytesToHexString data =
