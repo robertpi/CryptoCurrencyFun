@@ -12,16 +12,16 @@ type Output =
 
 type Input =
     { InputHash: array<byte>
-      InputTransactionIndex: int }
+      InputTransactionIndex: int
+      ResponseScriptLength: int64
+      ResponseScript: array<byte>
+      ParsedResponseScript: array<Op>
+      SequenceNumber: int }
 
 type Transaction = 
     { TransactionVersion: int
       NumberOfInputs: int64
       Inputs: array<Input>
-      ResponseScriptLength: int64
-      ResponseScript: array<byte>
-      ParsedResponseScript: array<Op>
-      SequenceNumber: int
       NumberOfOutputs: int64
       Outputs: array<Output>
       LockTime: int }
@@ -37,7 +37,7 @@ type Block =
       Transactions: array<Transaction> }
 
 module BlockParser = 
-    let debug = true
+    let debug = false
     let debugOffset = 0 // use in cases where the message doesn't start at begin
 
     let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
@@ -50,8 +50,8 @@ module BlockParser =
         
         if debug then printfn "output Ox%x" (offSet + debugOffset)
         let challengeScriptLength, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
-        
-        if debug then printfn "challengeScriptLength Ox%x Ox%x" (offSet + debugOffset) challengeScriptLength
+        if debug then printfn "challengeScriptLength value Ox%x"  challengeScriptLength
+
         let challengeScriptLengthInt = int challengeScriptLength
         
         if debug then printfn "challengeScript Ox%x" (offSet + debugOffset)
@@ -84,9 +84,23 @@ module BlockParser =
 
                 if debug then printfn "inputTransactionIndex value Ox%x" inputTransactionIndex
 
+                if debug then printfn "responseScriptLength Ox%x" (offSet + debugOffset)
+                let responseScriptLength, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
+                let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
+                
+                if debug then printfn "responseScript Ox%x responseScriptLengthInt %x" (offSet + debugOffset) responseScriptLengthInt
+                let responseScript, offSet = readByteBlock offSet responseScriptLengthInt  bytesToProcess
+                
+                if debug then printfn "sequenceNumber Ox%x" (offSet + debugOffset)
+                let sequenceNumber, offSet = Conversion.bytesToInt32 offSet bytesToProcess
+
                 let input =
                     { InputHash = inputHash
-                      InputTransactionIndex = inputTransactionIndex }
+                      InputTransactionIndex = inputTransactionIndex
+                      ResponseScriptLength = responseScriptLength
+                      ResponseScript = responseScript
+                      ParsedResponseScript = parseScript responseScript |> Array.ofList
+                      SequenceNumber = sequenceNumber }
 
                 let remainingOutputs' = remainingInputs - 1
                 let acc' = input :: acc
@@ -96,15 +110,6 @@ module BlockParser =
 
         let inputs, offSet = inputsLoop (int numberOfInputs)  offSet []
 
-        if debug then printfn "responseScriptLength Ox%x" (offSet + debugOffset)
-        let responseScriptLength, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
-        let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
-        
-        if debug then printfn "responseScript Ox%x responseScriptLengthInt %x" (offSet + debugOffset) responseScriptLengthInt
-        let responseScript, offSet = readByteBlock offSet responseScriptLengthInt  bytesToProcess
-        
-        if debug then printfn "sequenceNumber Ox%x" (offSet + debugOffset)
-        let sequenceNumber, offSet = Conversion.bytesToInt32 offSet bytesToProcess
 
         if debug then printfn "numberOfOutputs Ox%x" (offSet + debugOffset)
         let numberOfOutputs, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
@@ -128,10 +133,6 @@ module BlockParser =
         { TransactionVersion = transactionVersion
           NumberOfInputs = numberOfInputs
           Inputs = inputs |> Array.ofList
-          ResponseScriptLength = responseScriptLength
-          ResponseScript = responseScript
-          ParsedResponseScript = parseScript responseScript |> Array.ofList
-          SequenceNumber = sequenceNumber
           NumberOfOutputs = numberOfOutputs
           Outputs = Array.ofList outputs
           LockTime = lockTime }, offSet

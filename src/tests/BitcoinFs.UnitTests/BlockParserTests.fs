@@ -247,12 +247,12 @@ let message3 = [|0x1uy;
 
 [<Test>]
 let readFailedMessage() =
-    printfn "message.Length %i" message3.Length
-    let block = BlockParser.readMessage message3
+    printfn "message.Length %i" message.Length
+    let block = BlockParser.readMessage message
     printfn "%A" block
 
 [<Test>]
 let dumpFailedMessage() =
-    printfn "message.Length %i" message2.Length
-    hexdump message2
+    printfn "message.Length %i" message3.Length
+    hexdump message3
 
