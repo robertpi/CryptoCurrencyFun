@@ -106,8 +106,8 @@ type Op =
 
 // small subset of ops that appear in canonical scripts
 type CanonicalOutputScript =
-  | PayToPublicKey of string
-  | PayToAddress of string
+  | PayToPublicKey of Address
+  | PayToAddress of Address
 
 module ScriptParser =
 
@@ -251,25 +251,19 @@ module ScriptParser =
             // TODO would be nice to log the exception somewhere, but not sure where is best
             None
 
-    let bytesToHexString data =
-        let builder = new StringBuilder()
-        for b in data do
-            builder.Append(sprintf "%x" b) |> ignore
-        builder.ToString()
-
     let (|PushData|_|) op =
         match op with
-        | Op_PushData (_, data) -> Some (bytesToHexString data)
-        | Op_PushData1 (_, data) -> Some (bytesToHexString data)
-        | Op_PushData2 (_, data) -> Some (bytesToHexString data)
-        | Op_PushData4 (_, data) -> Some (bytesToHexString data)
+        | Op_PushData (_, data) -> Some data
+        | Op_PushData1 (_, data) -> Some data
+        | Op_PushData2 (_, data) -> Some data
+        | Op_PushData4 (_, data) -> Some data
         | _ -> None
 
     let (|PayToPublicKeyPattern|_|) ops =
         match ops with
         | [| op; Op_CheckSig |] ->
             match op with
-            | PushData data -> Some (PayToPublicKey data)
+            | PushData data -> Some (PayToPublicKey (Address.FromPublicKey data))
             | _ -> None
         | _ -> None
 
@@ -277,7 +271,7 @@ module ScriptParser =
         match ops with
         | [| Op_Dup; Op_HASH160; op; Op_EqualVerify; Op_CheckSig |] ->
             match op with
-            | PushData data -> Some (PayToAddress data)
+            | PushData data -> Some (PayToAddress (new Address(data)))
             | _ -> None
         | _ -> None
 

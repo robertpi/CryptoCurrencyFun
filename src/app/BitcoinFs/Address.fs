@@ -42,6 +42,9 @@ type Address(bytes: array<byte>) =
     
     member __.AsString = address
 
+    override __.ToString() =
+        sprintf "%s" address
+
     static member FromPublicKey(bytes: array<byte>) =
         let sha256 = SHA256.Create()
         let ripemd160 = RIPEMD160.Create()
@@ -60,5 +63,6 @@ type Address(bytes: array<byte>) =
         if debug then printfn "checkSum2 %s" (AddressHelpers.bytesToHexString bytesForCheckSum)
         
         let address = [| yield! bytes; yield! bytesForCheckSum.[0 .. 3]; |]
+        // Question do we want to save the pk buffer as part of the address? It may be useful later
         new Address(address)
 
