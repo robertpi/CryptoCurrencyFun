@@ -253,6 +253,6 @@ let readFailedMessage() =
 
 [<Test>]
 let dumpFailedMessage() =
-    printfn "message.Length %i" message3.Length
-    hexdump message3
+    printfn "message.Length %i" message.Length
+    hexdump message
 

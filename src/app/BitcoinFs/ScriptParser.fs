@@ -94,7 +94,7 @@ type Op =
     //Pseudo-words
     | Op_PubkeyHash                         //253     0xfd    Represents a public key hashed with OP_HASH160.
     | Op_Pubkey                             //254     0xfe    Represents a public key compatible with OP_CHECKSIG.
-    | Op_InvalidOpcode of byte              //255     0xff    Matches any opcode that is not yet assigned.
+    | Op_InvalidOpcode                      //255     0xff    Matches any opcode that is not yet assigned.
     //Reserved words
     | Op_Reserved                           //80  0x50    Transaction is invalid unless occuring in an unexecuted OP_IF branch
     | Op_Ver                                //98  0x62    Transaction is invalid unless occuring in an unexecuted OP_IF branch
@@ -204,21 +204,19 @@ module ScriptParser =
           (fun () -> Op_VerIf),              101uy  
           (fun () -> Op_VerNofIf),           102uy  
           (fun () -> Op_Reserved1),          137uy  
-          (fun () -> Op_Reserved2),          138uy ]
+          (fun () -> Op_Reserved2),          138uy
+          (fun () -> Op_InvalidOpcode),      255uy ]
         |> Seq.map (fun (x,y) -> y,x) // realized too late I'd build the table the wrong way round ...
         |> Map.ofSeq
 
 
-    let parseScript (script: array<byte>)  =
+    let private parseScriptImp (script: array<byte>) =
         let makePushDataOp index (v: IVector) opConst =
             let nextIndex = index + 1
-            //printfn "script.Length %i nextIndex %i (nextIndex + v.AsInt32 - 1) %i" script.Length nextIndex (nextIndex + v.AsInt32 - 1)
             opConst(v, script.[nextIndex .. nextIndex + v.AsInt32 - 1]), nextIndex + v.AsInt32
         let rec innerParse index acc =
-            //printfn "%A" acc
             if index >= script.Length then acc
             else
-                //printfn "index %i opcode %i" index script.[index]
                 match script.[index] with
                 | x when opCodeTable.ContainsKey(x) -> innerParse (index + 1) (opCodeTable.[x]() :: acc)
                 | x when 1uy <= x && x <= 75uy -> 
@@ -241,8 +239,17 @@ module ScriptParser =
                     innerParse nextIndex (op :: acc)
                 | x when 82uy <= x && x <= 96uy -> innerParse (index + 1) (OP_PushConst(Vector(x - 80uy) :> IVector) :: acc)
                 | x when 176uy <= x && x <= 185uy -> innerParse (index + 1) (Op_NOpx :: acc)
-                | x -> innerParse (index + 1) (Op_InvalidOpcode x :: acc) // spec if a little unclear if just 255 is Op_InvalidOpcode, or all other unassigned
+                | x when 176uy <= x && x <= 185uy -> innerParse (index + 1) (Op_NOpx :: acc)
+                | x -> failwithf "invalid opcode 0x%x" x 
         innerParse 0 [] |> List.rev
+
+    let parseScript (script: array<byte>) =
+        try
+            let script = parseScriptImp script |> List.toArray
+            Some script
+        with ex ->
+            // TODO would be nice to log the exception somewhere, but not sure where is best
+            None
 
     let bytesToHexString data =
         let builder = new StringBuilder()

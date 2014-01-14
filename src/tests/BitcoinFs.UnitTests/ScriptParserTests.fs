@@ -38,6 +38,6 @@ let shouldParseExampleOutputScripts() =
         printfn "Starting script %i ..." i
         let scriptResult = ScriptParser.parseScript script
         printfn "Got script: %A" scriptResult
-        let standardScript = ScriptParser.parseStandardOutputScript (Array.ofList scriptResult)
+        let standardScript = Option.bind ScriptParser.parseStandardOutputScript scriptResult
         printfn "Got standard script: %A" standardScript
     Seq.iteri doScript exampleOuputScripts
