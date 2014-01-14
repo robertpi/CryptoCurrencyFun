@@ -50,6 +50,7 @@
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
     <Compile Include="Misc.fs" />
+    <Compile Include="Address.fs" />
     <Compile Include="ScriptParser.fs" />
     <Compile Include="BlockParser.fs" />
   </ItemGroup>
@@ -59,6 +60,7 @@
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="System" />
+    <Reference Include="System.Numerics" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
