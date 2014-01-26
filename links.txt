@@ -1,0 +1,4 @@
+https://en.bitcoin.it/wiki/Protocol_specification
+https://en.bitcoin.it/wiki/Testnet
+http://geekswithblogs.net/cskardon/archive/2013/11/27/using-neo4j-with-f-ndash-cypher-2.0.aspx
+http://sergeytihon.wordpress.com/2013/03/27/using-neo4j-graph-db-with-f/ (old)

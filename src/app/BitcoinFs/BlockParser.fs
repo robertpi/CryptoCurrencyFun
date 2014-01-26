@@ -37,7 +37,7 @@ type Block =
       Transactions: array<Transaction> }
 
 module BlockParser = 
-    let debug = false
+    let debug = true
     let debugOffset = 0 // use in cases where the message doesn't start at begin
 
     let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
@@ -72,6 +72,8 @@ module BlockParser =
 
         if debug then printfn "numberOfInputs 0x%x" (offSet + debugOffset)
         let numberOfInputs, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
+
+        if numberOfInputs > 10L then failwith "big inputs"
 
         let rec inputsLoop remainingInputs offSet acc =
             if remainingInputs > 0 then
