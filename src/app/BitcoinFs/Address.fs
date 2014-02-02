@@ -10,6 +10,7 @@ module AddressHelpers =
         for b in data do
             builder.Append(sprintf "%02x" b) |> ignore
         builder.ToString()
+
     let hexStringToBytes (data: String) =
         [| for i in 0 .. 2 .. data.Length - 1 do
             yield Convert.ToByte(data.[i .. i + 1], 16) |]
@@ -25,7 +26,8 @@ module AddressHelpers =
                 loop res (charTable.[int remainder] :: acc)
             else
                 let rec appendZerosLoop i acc =
-                    if bytes.[i] = 0uy then
+                    // TODO not sure we protect against i going outside bounds of the array, but we do
+                    if bytes.Length  >  i && bytes.[i] = 0uy then
                         appendZerosLoop (i + 1) (charTable.[0] :: acc)
                     else
                         acc
