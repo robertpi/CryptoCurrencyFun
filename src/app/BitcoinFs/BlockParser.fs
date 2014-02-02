@@ -37,13 +37,10 @@ type Block =
       Transactions: array<Transaction> }
 
 module BlockParser = 
-    let debug = true
+    let debug = false
     let debugOffset = 0 // use in cases where the message doesn't start at begin
 
     let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
-
-    let readByteBlock offSet length (bytesToProcess: array<byte>) =
-        bytesToProcess.[offSet .. offSet + length - 1], offSet + length
 
     let readOutput offSet (bytesToProcess: array<byte>) =
         let output, offSet = Conversion.bytesToInt64 offSet bytesToProcess
@@ -55,7 +52,7 @@ module BlockParser =
         let challengeScriptLengthInt = int challengeScriptLength
         
         if debug then printfn "challengeScript 0x%x" (offSet + debugOffset)
-        let challengeScript, offSet = readByteBlock offSet challengeScriptLengthInt bytesToProcess
+        let challengeScript, offSet = Conversion.readByteBlock offSet challengeScriptLengthInt bytesToProcess
 
         let parsedScript = ScriptParser.parseScript challengeScript
         let canonicalOutputScript = Option.bind ScriptParser.parseStandardOutputScript parsedScript
@@ -72,8 +69,6 @@ module BlockParser =
 
         if debug then printfn "numberOfInputs 0x%x" (offSet + debugOffset)
         let numberOfInputs, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
-
-        if numberOfInputs > 10L then failwith "big inputs"
 
         let rec inputsLoop remainingInputs offSet acc =
             if remainingInputs > 0 then
@@ -92,7 +87,7 @@ module BlockParser =
                 let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
                 
                 if debug then printfn "responseScript 0x%x responseScriptLengthInt %x" (offSet + debugOffset) responseScriptLengthInt
-                let responseScript, offSet = readByteBlock offSet responseScriptLengthInt  bytesToProcess
+                let responseScript, offSet = Conversion.readByteBlock offSet responseScriptLengthInt  bytesToProcess
                 
                 if debug then printfn "sequenceNumber 0x%x" (offSet + debugOffset)
                 let sequenceNumber, offSet = Conversion.bytesToInt32 offSet bytesToProcess
@@ -160,10 +155,10 @@ module BlockParser =
         let version, offSet = Conversion.bytesToInt32 0 bytesToProcess
 
         if debug then printfn "hash 0x%x" (offSet + debugOffset)
-        let hash, offSet = readByteBlock offSet 32 bytesToProcess
+        let hash, offSet = Conversion.readByteBlock offSet 32 bytesToProcess
 
         if debug then printfn "merKleRoot 0x%x" (offSet + debugOffset)
-        let merkleRoot, offSet = readByteBlock offSet 32 bytesToProcess
+        let merkleRoot, offSet = Conversion.readByteBlock offSet 32 bytesToProcess
         
         if debug then printfn "timestamp 0x%x" (offSet + debugOffset)
         let timestampInt, offSet = Conversion.bytesToInt32 offSet bytesToProcess

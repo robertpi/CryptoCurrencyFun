@@ -53,6 +53,9 @@ module Enumerator =
         else buffer.[0 .. readBytes - 1]
 
 module Conversion =
+    let readByteBlock offSet length (bytesToProcess: array<byte>) =
+        bytesToProcess.[offSet .. offSet + length - 1], offSet + length
+
     let private bitShifts = Array.init 8 (fun x -> x * 8)
     let inline private genericConvert toInt startIndex length (parts: array<byte>) =
         seq { for i in 0 .. length - 1 do
@@ -84,13 +87,17 @@ module Conversion =
         match bytes.[startIndex] with
         | x when x < 0xfduy -> int64 x, startIndex + 1
         | x when x = 0xfduy -> 
-            let res, offSet =  (bytesToInt16 startIndex bytes)
+            // note: could have directly converted using bytesToUInt16, but wasn't sure if there were endian problems here
+            let intBlock, offSet = readByteBlock (startIndex + 1) 2 bytes
+            let res, _ = bytesToUInt16 0 intBlock 
             int64 res, offSet
         | x when x = 0xfeuy -> 
-            let res, offSet =  (bytesToInt32 startIndex bytes)
+            let intBlock, offSet = readByteBlock (startIndex + 1) 4 bytes
+            let res, _ = bytesToUInt32 0 intBlock 
             int64 res, offSet
         | x when x = 0xffuy ->
-            let res, offSet =  (bytesToInt64 startIndex bytes)
+            let intBlock, offSet = readByteBlock (startIndex + 1) 8 bytes
+            let res, _ = bytesToUInt64 0 intBlock 
             int64 res, offSet
         | _ -> failwith "unexpectedly large byte :)"
 
