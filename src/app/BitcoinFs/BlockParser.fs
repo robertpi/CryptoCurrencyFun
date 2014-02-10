@@ -2,6 +2,7 @@ namespace BitcoinFs
 open System
 open System.Diagnostics
 open System.Collections.Generic
+open System.Security.Cryptography
 
 type Output =
     { Value: int64
@@ -24,7 +25,8 @@ type Transaction =
       Inputs: array<Input>
       NumberOfOutputs: int64
       Outputs: array<Output>
-      LockTime: int }
+      LockTime: int
+      TransactionHash: array<byte> }
 
 type Block =
     { Version: int
@@ -64,6 +66,8 @@ module BlockParser =
           CanonicalOutputScript =  canonicalOutputScript }, offSet
 
     let readTransactions offSet (bytesToProcess: array<byte>) =
+        let initalOffSet = offSet
+
         if debug then printfn "transactionVersion 0x%x" offSet
         let transactionVersion, offSet = Conversion.bytesToInt32 offSet bytesToProcess
 
@@ -131,6 +135,9 @@ module BlockParser =
         if debug then printfn "lockTime 0x%x" (offSet + debugOffset)
         let lockTime, offSet = Conversion.bytesToInt32 offSet bytesToProcess
         
+        let sha256 = SHA256.Create()
+        let transactionHash = sha256.ComputeHash(sha256.ComputeHash(bytesToProcess, initalOffSet, offSet - initalOffSet))
+
         if debug then printfn "final from transaction 0x%x lockTime 0x%x" (offSet + debugOffset) lockTime
         
         { TransactionVersion = transactionVersion
@@ -138,7 +145,8 @@ module BlockParser =
           Inputs = inputs |> Array.ofList
           NumberOfOutputs = numberOfOutputs
           Outputs = Array.ofList outputs
-          LockTime = lockTime }, offSet
+          LockTime = lockTime
+          TransactionHash = transactionHash }, offSet
 
 
     let readMessageHeader (e: IEnumerator<byte>) =

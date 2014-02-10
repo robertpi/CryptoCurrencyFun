@@ -45,7 +45,10 @@ let shouldReadFirstThreeMessages() =
     let blocks = BlockParser.readMessages 0 3 (fun ex _ -> printfn "%O" ex) stream
     printfn "%A" blocks
     for block in blocks |> Seq.skip 1 do
-        printfn "%s" (AddressHelpers.bytesToHexString (block.Hash |> Array.rev))
+        printfn "%s" (Conversion.littleEndianBytesToHexString block.Hash)
+        for trans in block.Transactions do
+            printfn "%s" (Conversion.littleEndianBytesToHexString trans.TransactionHash)
+
 
 [<Test>]
 let shouldReadMessagesFourToFive() =
@@ -72,7 +75,7 @@ let writeErrorFile e message =
 
 [<Test>]
 let readAllMessagesSummarizeNonCanonical() =
-    //let target, spec = "/home/robert/.bitcoin/blocks", "*.dat"
+    let target, spec = "/home/robert/.bitcoin/blocks", "*.dat"
     let timer = Stopwatch.StartNew()
     //let stream = Directory.getByteStreamOfFiles target spec 
     let stream = File.getByteStream "/home/robert/.bitcoin/blocks/blk00000.dat" 
@@ -2219,5 +2222,5 @@ let dumpFailedMessage() =
 [<Test>]
 let printHashFromFailedMessage() =
     let bytes, _ = Conversion.readByteBlock 4 32 message4
-    printfn "%s" (AddressHelpers.bytesToHexString (Array.rev bytes))
+    printfn "%s" (Conversion.littleEndianBytesToHexString bytes)
 

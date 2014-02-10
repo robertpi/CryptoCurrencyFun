@@ -2,6 +2,7 @@ namespace BitcoinFs
 open System
 open System.Collections.Generic
 open System.IO
+open System.Text
 
 module File =
     let getByteStream file =
@@ -53,6 +54,19 @@ module Enumerator =
         else buffer.[0 .. readBytes - 1]
 
 module Conversion =
+    let bytesToHexString (data: array<byte>) =
+        let builder = new StringBuilder()
+        for b in data do
+            builder.Append(sprintf "%02x" b) |> ignore
+        builder.ToString()
+
+    let littleEndianBytesToHexString (data: array<byte>) =
+        bytesToHexString (data |> Array.rev)
+
+    let hexStringToBytes (data: String) =
+        [| for i in 0 .. 2 .. data.Length - 1 do
+            yield Convert.ToByte(data.[i .. i + 1], 16) |]
+
     let readByteBlock offSet length (bytesToProcess: array<byte>) =
         bytesToProcess.[offSet .. offSet + length - 1], offSet + length
 

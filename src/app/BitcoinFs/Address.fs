@@ -5,16 +5,6 @@ open System.Text
 open System.Security.Cryptography
 
 module AddressHelpers =
-    let bytesToHexString data =
-        let builder = new StringBuilder()
-        for b in data do
-            builder.Append(sprintf "%02x" b) |> ignore
-        builder.ToString()
-
-    let hexStringToBytes (data: String) =
-        [| for i in 0 .. 2 .. data.Length - 1 do
-            yield Convert.ToByte(data.[i .. i + 1], 16) |]
-
     let private charTable = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
     let base58Encode (bytes: array<byte>) =
@@ -52,17 +42,17 @@ type Address(bytes: array<byte>) =
         let ripemd160 = RIPEMD160.Create()
         
         let bytes = sha256.ComputeHash bytes
-        if debug then printfn "after sha256 %s" (AddressHelpers.bytesToHexString bytes)
+        if debug then printfn "after sha256 %s" (Conversion.bytesToHexString bytes)
         
         let bytes = ripemd160.ComputeHash bytes
-        if debug then printfn "after ripemd160 %s" (AddressHelpers.bytesToHexString bytes)
+        if debug then printfn "after ripemd160 %s" (Conversion.bytesToHexString bytes)
         
         let bytes = [| yield 0uy; yield! bytes |]
         let bytesForCheckSum = sha256.ComputeHash bytes
-        if debug then printfn "checkSum1 %s" (AddressHelpers.bytesToHexString bytesForCheckSum)
+        if debug then printfn "checkSum1 %s" (Conversion.bytesToHexString bytesForCheckSum)
         
         let bytesForCheckSum = sha256.ComputeHash bytesForCheckSum
-        if debug then printfn "checkSum2 %s" (AddressHelpers.bytesToHexString bytesForCheckSum)
+        if debug then printfn "checkSum2 %s" (Conversion.bytesToHexString bytesForCheckSum)
         
         let address = [| yield! bytes; yield! bytesForCheckSum.[0 .. 3]; |]
         // Question do we want to save the pk buffer as part of the address? It may be useful later
