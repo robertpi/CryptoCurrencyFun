@@ -113,7 +113,6 @@ module LoadBlockChainModel =
             .ExecuteWithoutResults()
 
     let updateTransaction (trans: NeoTransaction) =
-        printfn "trans: %s input: %i output: %i" trans.TransactionHash trans.TotalInputs trans.TotalOutputs
         client.Cypher
             .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = trans.TransactionHash)
