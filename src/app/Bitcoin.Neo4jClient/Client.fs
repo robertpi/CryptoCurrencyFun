@@ -39,10 +39,10 @@ module LoadBlockChainModel =
     // TODO feels like we could have a generic save method
     let saveNeoOutput transactionHash neoOutput =
         client.Cypher
-            .Create("(o:NeoOutput {param})")
+            .Create("(o:Output {param})")
             .WithParam("param", neoOutput)
             .With("o")
-            .Match("(t:NeoTransaction)")
+            .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = transactionHash)
             .CreateUnique("t-[:output]->o")
             .Return<NeoOutput>("o")
@@ -62,7 +62,7 @@ module LoadBlockChainModel =
 
     let lookupTransaction transHash i =
         client.Cypher
-            .Match("(t:NeoTransaction)-[:output]->(o:NeoOutput)")
+            .Match("(t:Transaction)-[:output]->(o:Output)")
             .Where(fun t -> t.TransactionHash = transHash)
             .AndWhere(fun o -> o.Index = i)
             .Return<NeoOutput>("o")
@@ -71,10 +71,10 @@ module LoadBlockChainModel =
 
     let saveNeoInput transactionHash neoInput =
         client.Cypher
-            .Create("(i:NeoInput {param})")
+            .Create("(i:Input {param})")
             .WithParam("param", neoInput)
             .With("i")
-            .Match("(t:NeoTransaction)")
+            .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = transactionHash)
             .CreateUnique("t-[:input]->i")
             .Return<NeoInput>("i")
@@ -97,7 +97,7 @@ module LoadBlockChainModel =
 
     let saveNeoTrans neoTrans =
         client.Cypher
-            .Create("(t:NeoTransaction {param})")
+            .Create("(t:Transaction {param})")
             .WithParam("param", neoTrans)
             .Return<NeoTransaction>("t")
             .Results
@@ -105,7 +105,7 @@ module LoadBlockChainModel =
 
     let tansactionRelations trans blockHash =
         client.Cypher
-            .Match("(t:NeoTransaction)", "(b:NeoBlock)")
+            .Match("(t:Transaction)", "(b:Block)")
             .Where(fun t -> t.TransactionHash = trans.TransactionHash)
             .AndWhere(fun b -> b.Hash = blockHash)
             .CreateUnique("t-[:belongsTo]->b")
@@ -113,8 +113,9 @@ module LoadBlockChainModel =
             .ExecuteWithoutResults()
 
     let updateTransaction (trans: NeoTransaction) =
+        printfn "trans: %s input: %i output: %i" trans.TransactionHash trans.TotalInputs trans.TotalOutputs
         client.Cypher
-            .Match("(t:NeoTransaction)")
+            .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = trans.TransactionHash)
             .Set("t.TotalInputs = {inputparam}")
             .WithParam("inputparam", trans.TotalInputs)
@@ -133,14 +134,14 @@ module LoadBlockChainModel =
         let outputs = Array.mapi (neoOutputOfOutput transactionHash) trans.Outputs
         let totalInputs = inputs |> Seq.sumBy (fun x -> x.Value)
         // TODO this assumes when addresss is none, the payment goes to the minor, this is usually but not always true
-        let totalOutputs = outputs |> Seq.filter (fun x -> x.Address = null) |> Seq.sumBy (fun x -> x.Value)
+        let totalOutputs = outputs |> Seq.filter (fun x -> x.Address <> null) |> Seq.sumBy (fun x -> x.Value)
         let transaction = {emptyTransaction with TotalInputs = totalInputs; TotalOutputs = totalOutputs}
         updateTransaction transaction
         tansactionRelations transaction hash
 
     let blockRelations prev curr =
         client.Cypher
-            .Match("(p:NeoBlock)", "(c:NeoBlock)")
+            .Match("(p:Block)", "(c:Block)")
             .Where(fun p -> p.Hash = prev.Hash)
             .AndWhere(fun c -> c.Hash = curr.Hash)
             .CreateUnique("p-[:next]->c")
@@ -149,37 +150,32 @@ module LoadBlockChainModel =
 
     let saveNeoBlock neoBlock =
         client.Cypher
-            .Create("(b:NeoBlock {param})")
+            .Create("(b:Block {param})")
             .WithParam("param", neoBlock)
             .Return<NeoBlock>("b")
             .Results
             .Single()
 
     let neoBlockOfBlock (block: Block) hash =
-        for trans in block.Transactions do
-            neoTransOfTrans trans hash
         let neoBlock = 
             { Hash = hash
               Timestamp = new DateTimeOffset(block.Timestamp, new TimeSpan(0L))  }
-        saveNeoBlock neoBlock
+        let savedNeoBlock = saveNeoBlock neoBlock
+        for trans in block.Transactions do
+            neoTransOfTrans trans hash
+        savedNeoBlock
  
-    let scanBlocks (prevBlock, currBlock) nextBlock =
+    let scanBlocks (prevBlock, currBlock) (nextBlock: Block) =
         match prevBlock, currBlock with
-        | Some prevNeoBlock, Some currNeoBlock ->
-            let nextNeoBlock = neoBlockOfBlock nextBlock currNeoBlock.Hash
-            printfn "did third save"
+        | Some prevNeoBlock, Some currBlock ->
+            let currNeoBlock = neoBlockOfBlock currBlock (Conversion.littleEndianBytesToHexString nextBlock.Hash)
             blockRelations prevNeoBlock currNeoBlock
-            printfn "did first relation"
-            Some currNeoBlock, Some nextNeoBlock
-        | None, Some currNeoBlock ->
-            let nextNeoBlock = neoBlockOfBlock nextBlock currNeoBlock.Hash
-            printfn "did second save"
-            Some currNeoBlock, Some nextNeoBlock
+            Some currNeoBlock, Some nextBlock
+        | None, Some currBlock ->
+            let currNeoBlock = neoBlockOfBlock currBlock (Conversion.littleEndianBytesToHexString nextBlock.Hash)
+            Some currNeoBlock, Some nextBlock
         | None, None -> 
-            // TODO assumes first input is the genersis block, this will need to change to make it restartable
-            let nextNeoBlock = neoBlockOfBlock nextBlock "0000000000000000000000000000000000000000000000000000000000000000"
-            printfn "did first save"
-            None, Some nextNeoBlock
+            None, Some nextBlock
         | _ -> failwith "assert false"
 
     let load() =
