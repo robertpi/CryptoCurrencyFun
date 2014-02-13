@@ -241,4 +241,44 @@ module BlockParser =
                     | Error exc -> messageErrorHandler exc messageBuffer }
         
 
+type ErrorHandler =
+    | Propagate
+    | Ignore
+    | Custom of (Exception -> array<byte> -> unit)
+
+exception BlockParserException of (array<byte> * Exception)
+
+type BlockParserStream private (byteStream: seq<byte>) =
+    let blockParsedEvent = new Event<Block>()
+    let mutable errorHandler = Propagate
+
+    let getErrorHandler() =
+        match errorHandler with
+        | Propagate -> fun exc message -> raise(BlockParserException(message, exc))
+        | Ignore -> fun _ _ -> ()
+        | Custom func -> func
+
+    member __.NewBlock = blockParsedEvent.Publish
+    member __.ErrorHandler
+        with get() = errorHandler
+        and  set x = errorHandler <- x
+    member __.StartPush() = 
+        let blocks = BlockParser.readAllMessages (getErrorHandler()) byteStream
+        for block in blocks do 
+            blockParsedEvent.Trigger block
+    member __.StartPushBetween startIndex endIndex = 
+        let blocks = BlockParser.readMessages startIndex endIndex (getErrorHandler()) byteStream
+        for block in blocks do 
+            blockParsedEvent.Trigger block
+    member __.Pull() = 
+        BlockParser.readAllMessages (getErrorHandler()) byteStream
+    member __.PullMessages startIndex endIndex = 
+        BlockParser.readMessages startIndex endIndex (getErrorHandler()) byteStream
+
+    static member FromFile(file: string) =
+        let stream = File.getByteStream file
+        new BlockParserStream(stream)
+    static member FromDirectory (dir: string) (fileSpec: string) =
+        let stream = Directory.getByteStreamOfFiles dir fileSpec 
+        new BlockParserStream(stream)
 

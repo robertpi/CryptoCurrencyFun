@@ -41,8 +41,8 @@ let hexdump (bytes: byte[]) (start: int) (length: int) =
 let shouldReadFirstThreeMessages() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
-    let stream = File.getByteStream target 
-    let blocks = BlockParser.readMessages 0 3 (fun ex _ -> printfn "%O" ex) stream
+    let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
+    let blocks = parser.PullMessages 0 3
     printfn "%A" blocks
     for block in blocks |> Seq.skip 1 do
         printfn "%s" (Conversion.littleEndianBytesToHexString block.Hash)
@@ -54,8 +54,8 @@ let shouldReadFirstThreeMessages() =
 let shouldReadMessagesFourToFive() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
-    let stream = File.getByteStream target 
-    let blocks = BlockParser.readMessages 3 4 (fun _ _ -> ()) stream
+    let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
+    let blocks = parser.PullMessages 3 4
     printfn "%A" blocks
 
 let errorsDir = "/home/robert/code/BitcoinFs/errors"
@@ -77,9 +77,9 @@ let writeErrorFile e message =
 let readAllMessagesSummarizeNonCanonical() =
     let target, spec = "/home/robert/.bitcoin/blocks", "*.dat"
     let timer = Stopwatch.StartNew()
-    //let stream = Directory.getByteStreamOfFiles target spec 
     let stream = File.getByteStream "/home/robert/.bitcoin/blocks/blk00000.dat" 
-    let blocks = BlockParser.readAllMessages writeErrorFile stream
+    let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom writeErrorFile) 
+    let blocks = parser.Pull()
     let blockCounter = ref 0
     let payToAddress = ref 0
     let payToPK = ref 0
