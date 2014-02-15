@@ -11,7 +11,7 @@ type NeoInput =
       Value: int64
       Address: string }
 
-[<CLIMutable>]
+[<CLIMutable;>]
 type NeoOutput = 
     { Value: int64
       Address: string
@@ -30,7 +30,8 @@ type NeoBlock =
 
 [<CLIMutable>]
 type NeoAddress = 
-    { Address: string }
+    { Address: string
+      Balance: int64 }
 
 module LoadBlockChainModel =
     let client = new GraphClient(new Uri("http://localhost:7474/db/data"))
@@ -49,14 +50,50 @@ module LoadBlockChainModel =
             .Results
             .Single()
 
+    let payToAddress transactionHash address value =
+        client.Cypher
+            .Merge("(a:Address { Address: {param}})")
+            .WithParam("param", address)
+            .OnCreate()
+            .Set("a.Balance = {balance}")
+            .OnMatch()
+            .Set("a.Balance = a.Balance + {balance}")
+            .With("a")
+            .Match("(t:Transaction)")
+            .Where(fun t -> t.TransactionHash = transactionHash)
+            .Create("t-[:pays {amount: {balance}}]->a")
+            .WithParam("balance", value)
+            .ExecuteWithoutResults()
+
+    let payFromAddress transactionHash address value =
+        client.Cypher
+            .Merge("(a:Address { Address: {param}})")
+            .WithParam("param", address)
+            .OnCreate()
+            .Set("a.Balance = {balance}")
+            .OnMatch()
+            .Set("a.Balance = a.Balance - {balance}")
+            .With("a")
+            .Match("(t:Transaction)")
+            .Where(fun t -> t.TransactionHash = transactionHash)
+            .Create("a-[:pays {amount: {balance}}]->t")
+            .WithParam("balance", value)
+            .ExecuteWithoutResults()
+
     let neoOutputOfOutput transactionHash i (output: Output): NeoOutput =
         let extractAddressFromScript canonicalScript =
             match canonicalScript with
             | PayToPublicKey address -> address.AsString
             | PayToAddress address -> address.AsString
         let address = output.CanonicalOutputScript |> Option.map extractAddressFromScript
+        let address =
+            match address with 
+            | Some address -> 
+                payToAddress transactionHash address output.Value
+                address 
+            | _ -> null
         { Value = output.Value
-          Address = match address with Some x -> x | _ -> null
+          Address = address
           Index = i }
         |> saveNeoOutput transactionHash
 
@@ -67,7 +104,7 @@ module LoadBlockChainModel =
             .AndWhere(fun o -> o.Index = i)
             .Return<NeoOutput>("o")
             .Results
-            .Single()
+            .SingleOrDefault()
 
     let saveNeoInput transactionHash neoInput =
         client.Cypher
@@ -88,7 +125,13 @@ module LoadBlockChainModel =
                 null, 0L
             else
                 let output = lookupTransaction inputHash input.InputTransactionIndex
-                output.Address, output.Value
+                if output :> obj <> null then
+                    output.Address, output.Value
+                else
+                    printfn "can't find input %s %i" inputHash input.InputTransactionIndex
+                    null, 0L
+        if outputAddress <> null then
+            payFromAddress transactionHash outputAddress outputValue
         { Hash =  inputHash
           Index = input.InputTransactionIndex
           Address = outputAddress
@@ -183,7 +226,7 @@ module LoadBlockChainModel =
         parser.NewBlock 
         |> Event.scan scanBlocks (None, None) 
         |> ignore
-        parser.StartPushBetween 0 10
+        parser.StartPush()
 
     load()
 

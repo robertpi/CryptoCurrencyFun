@@ -37,7 +37,7 @@ let hexdump (bytes: byte[]) (start: int) (length: int) =
         printfn "|"
         totalRead := !totalRead + !read
 
-[<Test>]
+[<Test; Ignore("depends on bitcoin files being downloaded correctly")>]
 let shouldReadFirstThreeMessages() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
@@ -50,7 +50,7 @@ let shouldReadFirstThreeMessages() =
             printfn "%s" (Conversion.littleEndianBytesToHexString trans.TransactionHash)
 
 
-[<Test>]
+[<Test; Ignore("depends on bitcoin files being downloaded correctly")>]
 let shouldReadMessagesFourToFive() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
@@ -73,11 +73,10 @@ let writeErrorFile e message =
                                 file.Write("                "))
     file.WriteLine(" |]")
 
-[<Test>]
+[<Test; Ignore("depends on bitcoin files being downloaded correctly")>]
 let readAllMessagesSummarizeNonCanonical() =
     let target, spec = "/home/robert/.bitcoin/blocks", "*.dat"
     let timer = Stopwatch.StartNew()
-    let stream = File.getByteStream "/home/robert/.bitcoin/blocks/blk00000.dat" 
     let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom writeErrorFile) 
     let blocks = parser.Pull()
     let blockCounter = ref 0
