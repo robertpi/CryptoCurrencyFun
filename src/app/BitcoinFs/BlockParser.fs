@@ -113,7 +113,7 @@ module BlockParser =
                 let acc' = input :: acc
                 inputsLoop remainingOutputs' offSet acc'
             else
-                acc, offSet
+                acc |> List.rev, offSet
 
         let inputs, offSet = inputsLoop (int numberOfInputs)  offSet []
 
@@ -128,7 +128,7 @@ module BlockParser =
             if remainingOutputs' > 0 then
                 outputLoop remainingOutputs' offSet' acc'
             else
-                acc', offSet'
+                acc' |> List.rev, offSet'
         
         let outputs, offSet = outputLoop (int numberOfOutputs) offSet []
         
@@ -190,7 +190,7 @@ module BlockParser =
             if remainingTransactions' > 0 then
                 transactionsLoop remainingTransactions' offSet' acc'
             else
-                acc', offSet'
+                acc' |> List.rev, offSet'
 
         let transactions, offSet = transactionsLoop (int numberOfTransactions) offSet []
 
@@ -250,6 +250,7 @@ exception BlockParserException of (array<byte> * Exception)
 
 type BlockParserStream private (byteStream: seq<byte>) =
     let blockParsedEvent = new Event<Block>()
+    let streamEventEvent = new Event<Unit>()
     let mutable errorHandler = Propagate
 
     let getErrorHandler() =
@@ -259,6 +260,7 @@ type BlockParserStream private (byteStream: seq<byte>) =
         | Custom func -> func
 
     member __.NewBlock = blockParsedEvent.Publish
+    member __.StreamEnded = streamEventEvent.Publish
     member __.ErrorHandler
         with get() = errorHandler
         and  set x = errorHandler <- x
@@ -266,10 +268,12 @@ type BlockParserStream private (byteStream: seq<byte>) =
         let blocks = BlockParser.readAllMessages (getErrorHandler()) byteStream
         for block in blocks do 
             blockParsedEvent.Trigger block
+        streamEventEvent.Trigger()
     member __.StartPushBetween startIndex endIndex = 
         let blocks = BlockParser.readMessages startIndex endIndex (getErrorHandler()) byteStream
         for block in blocks do 
             blockParsedEvent.Trigger block
+        streamEventEvent.Trigger()
     member __.Pull() = 
         BlockParser.readAllMessages (getErrorHandler()) byteStream
     member __.PullMessages startIndex endIndex = 

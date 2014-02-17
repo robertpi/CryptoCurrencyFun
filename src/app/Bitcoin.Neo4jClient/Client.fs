@@ -1,8 +1,11 @@
 namespace BitcoinFs.Neo4jClient
 open System
 open System.Linq
+open System.Diagnostics
+open System.Collections.Generic
 open BitcoinFs
 open Neo4jClient
+open Neo4jClient.Cypher
 
 [<CLIMutable>]
 type NeoInput = 
@@ -26,14 +29,13 @@ type NeoTransaction =
 [<CLIMutable>]
 type NeoBlock = 
     { Hash: string
-      Timestamp: DateTimeOffset } 
-
-[<CLIMutable>]
-type NeoAddress = 
-    { Address: string
-      Balance: int64 }
+      Timestamp: DateTimeOffset
+      Height: int64 } 
 
 module LoadBlockChainModel =
+    // TODO make db location configurable
+    // TODO tidy up db access
+    // TODO make restartable (need to store byte index)
     let client = new GraphClient(new Uri("http://localhost:7474/db/data"))
     client.Connect()
 
@@ -50,37 +52,29 @@ module LoadBlockChainModel =
             .Results
             .Single()
 
-    let payToAddress transactionHash address value =
+    type PayDirection = To | From
+
+    let payAddress direction transactionHash address value transTime =
+        let sign, source, dest = 
+            match direction with 
+            | To -> "+", "t", "a"
+            | From -> "-", "a", "t"
         client.Cypher
             .Merge("(a:Address { Address: {param}})")
             .WithParam("param", address)
             .OnCreate()
             .Set("a.Balance = {balance}")
             .OnMatch()
-            .Set("a.Balance = a.Balance + {balance}")
+            .Set(sprintf "a.Balance = a.Balance %s {balance}" sign)
             .With("a")
             .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = transactionHash)
-            .Create("t-[:pays {amount: {balance}}]->a")
+            .Create(sprintf "%s-[:pays {Amount: {balance}, Time: {time}}]->%s" source dest)
             .WithParam("balance", value)
+            .WithParam("time", transTime)
             .ExecuteWithoutResults()
 
-    let payFromAddress transactionHash address value =
-        client.Cypher
-            .Merge("(a:Address { Address: {param}})")
-            .WithParam("param", address)
-            .OnCreate()
-            .Set("a.Balance = {balance}")
-            .OnMatch()
-            .Set("a.Balance = a.Balance - {balance}")
-            .With("a")
-            .Match("(t:Transaction)")
-            .Where(fun t -> t.TransactionHash = transactionHash)
-            .Create("a-[:pays {amount: {balance}}]->t")
-            .WithParam("balance", value)
-            .ExecuteWithoutResults()
-
-    let neoOutputOfOutput transactionHash i (output: Output): NeoOutput =
+    let neoOutputOfOutput transactionHash transTime i (output: Output): NeoOutput =
         let extractAddressFromScript canonicalScript =
             match canonicalScript with
             | PayToPublicKey address -> address.AsString
@@ -89,7 +83,7 @@ module LoadBlockChainModel =
         let address =
             match address with 
             | Some address -> 
-                payToAddress transactionHash address output.Value
+                payAddress To transactionHash address output.Value transTime
                 address 
             | _ -> null
         { Value = output.Value
@@ -118,7 +112,7 @@ module LoadBlockChainModel =
             .Results
             .Single()
 
-    let neoInputOfInput transactionHash (input: Input)  =
+    let neoInputOfInput transactionHash transTime (input: Input) =
         let inputHash = Conversion.littleEndianBytesToHexString input.InputHash
         let outputAddress, outputValue =
             if input.InputTransactionIndex = -1 then
@@ -131,7 +125,7 @@ module LoadBlockChainModel =
                     printfn "can't find input %s %i" inputHash input.InputTransactionIndex
                     null, 0L
         if outputAddress <> null then
-            payFromAddress transactionHash outputAddress outputValue
+            payAddress From transactionHash outputAddress outputValue transTime
         { Hash =  inputHash
           Index = input.InputTransactionIndex
           Address = outputAddress
@@ -165,15 +159,15 @@ module LoadBlockChainModel =
             .WithParam("outputparam", trans.TotalOutputs)
             .ExecuteWithoutResults()
 
-    let neoTransOfTrans (trans: Transaction) (hash: string) =
+    let neoTransOfTrans (trans: Transaction) (hash: string) timestamp =
         let transactionHash = Conversion.littleEndianBytesToHexString trans.TransactionHash
         let emptyTransaction =
             { TransactionHash = transactionHash
               TotalInputs = 0L
               TotalOutputs = 0L }
             |> saveNeoTrans
-        let inputs = Array.map (neoInputOfInput transactionHash)  trans.Inputs
-        let outputs = Array.mapi (neoOutputOfOutput transactionHash) trans.Outputs
+        let inputs = Array.map (neoInputOfInput transactionHash timestamp)  trans.Inputs
+        let outputs = Array.mapi (neoOutputOfOutput transactionHash timestamp) trans.Outputs
         let totalInputs = inputs |> Seq.sumBy (fun x -> x.Value)
         // TODO this assumes when addresss is none, the payment goes to the minor, this is usually but not always true
         let totalOutputs = outputs |> Seq.filter (fun x -> x.Address <> null) |> Seq.sumBy (fun x -> x.Value)
@@ -198,35 +192,50 @@ module LoadBlockChainModel =
             .Results
             .Single()
 
-    let neoBlockOfBlock (block: Block) hash =
+    let neoBlockOfBlock (block: Block) hash height =
+        let timestamp = new DateTimeOffset(block.Timestamp, new TimeSpan(0L))
         let neoBlock = 
             { Hash = hash
-              Timestamp = new DateTimeOffset(block.Timestamp, new TimeSpan(0L))  }
+              Timestamp = timestamp
+              Height = height }
         let savedNeoBlock = saveNeoBlock neoBlock
         for trans in block.Transactions do
-            neoTransOfTrans trans hash
+            neoTransOfTrans trans hash timestamp
         savedNeoBlock
  
-    let scanBlocks (prevBlock, currBlock) (nextBlock: Block) =
+    let scanBlocks (prevBlock, currBlock, i) (nextBlock: Block) =
         match prevBlock, currBlock with
         | Some prevNeoBlock, Some currBlock ->
-            let currNeoBlock = neoBlockOfBlock currBlock (Conversion.littleEndianBytesToHexString nextBlock.Hash)
+            let currNeoBlock = neoBlockOfBlock currBlock (Conversion.littleEndianBytesToHexString nextBlock.Hash) i
             blockRelations prevNeoBlock currNeoBlock
-            Some currNeoBlock, Some nextBlock
+            Some currNeoBlock, Some nextBlock, (i + 1L)
         | None, Some currBlock ->
-            let currNeoBlock = neoBlockOfBlock currBlock (Conversion.littleEndianBytesToHexString nextBlock.Hash)
-            Some currNeoBlock, Some nextBlock
+            let currNeoBlock = neoBlockOfBlock currBlock (Conversion.littleEndianBytesToHexString nextBlock.Hash) i
+            Some currNeoBlock, Some nextBlock, (i + 1L)
         | None, None -> 
-            None, Some nextBlock
+            None, Some nextBlock, i
         | _ -> failwith "assert false"
 
+    let addIndexes() =
+        let rawClient = client :> IRawGraphClient
+        let query text = new CypherQuery(text, new Dictionary<string, obj>(), CypherResultMode.Set)
+        rawClient.ExecuteCypher(query "CREATE INDEX ON :Block(Hash)")
+        rawClient.ExecuteCypher(query "CREATE INDEX ON :Block(Height)")
+        rawClient.ExecuteCypher(query "CREATE INDEX ON :Transaction(TransactionHash)")
+
     let load() =
+        addIndexes()
         let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
-        let parser = BlockParserStream.FromFile(target) 
+        let parser = BlockParserStream.FromFile(target)
+        let sw = Stopwatch.StartNew() 
+        parser.StreamEnded
+        |> Event.add (fun _ -> 
+            printfn "Done in %O" sw.Elapsed
+            Process.GetCurrentProcess().Kill())
         parser.NewBlock 
-        |> Event.scan scanBlocks (None, None) 
+        |> Event.scan scanBlocks (None, None, 0L) 
         |> ignore
-        parser.StartPush()
+        parser.StartPushBetween 0 10
 
     load()
 
