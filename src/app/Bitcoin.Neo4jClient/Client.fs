@@ -48,9 +48,7 @@ module LoadBlockChainModel =
             .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = transactionHash)
             .CreateUnique("t-[:output]->o")
-            .Return<NeoOutput>("o")
-            .Results
-            .Single()
+            .ExecuteWithoutResults()
 
     type PayDirection = To | From
 
@@ -86,10 +84,12 @@ module LoadBlockChainModel =
                 payAddress To transactionHash address output.Value transTime
                 address 
             | _ -> null
-        { Value = output.Value
-          Address = address
-          Index = i }
-        |> saveNeoOutput transactionHash
+        let output =
+            { Value = output.Value
+              Address = address
+              Index = i }
+        saveNeoOutput transactionHash output
+        output
 
     let lookupTransaction transHash i =
         client.Cypher
@@ -108,9 +108,7 @@ module LoadBlockChainModel =
             .Match("(t:Transaction)")
             .Where(fun t -> t.TransactionHash = transactionHash)
             .CreateUnique("t-[:input]->i")
-            .Return<NeoInput>("i")
-            .Results
-            .Single()
+            .ExecuteWithoutResults()
 
     let neoInputOfInput transactionHash transTime (input: Input) =
         let inputHash = Conversion.littleEndianBytesToHexString input.InputHash
@@ -126,19 +124,19 @@ module LoadBlockChainModel =
                     null, 0L
         if outputAddress <> null then
             payAddress From transactionHash outputAddress outputValue transTime
-        { Hash =  inputHash
-          Index = input.InputTransactionIndex
-          Address = outputAddress
-          Value = outputValue }
-        |> saveNeoInput transactionHash
+        let input = 
+            { Hash =  inputHash
+              Index = input.InputTransactionIndex
+              Address = outputAddress
+              Value = outputValue }
+        saveNeoInput transactionHash input
+        input
 
     let saveNeoTrans neoTrans =
         client.Cypher
             .Create("(t:Transaction {param})")
             .WithParam("param", neoTrans)
-            .Return<NeoTransaction>("t")
-            .Results
-            .Single()
+            .ExecuteWithoutResults()
 
     let tansactionRelations trans blockHash =
         client.Cypher
@@ -165,7 +163,7 @@ module LoadBlockChainModel =
             { TransactionHash = transactionHash
               TotalInputs = 0L
               TotalOutputs = 0L }
-            |> saveNeoTrans
+        saveNeoTrans emptyTransaction
         let inputs = Array.map (neoInputOfInput transactionHash timestamp)  trans.Inputs
         let outputs = Array.mapi (neoOutputOfOutput transactionHash timestamp) trans.Outputs
         let totalInputs = inputs |> Seq.sumBy (fun x -> x.Value)
@@ -188,9 +186,7 @@ module LoadBlockChainModel =
         client.Cypher
             .Create("(b:Block {param})")
             .WithParam("param", neoBlock)
-            .Return<NeoBlock>("b")
-            .Results
-            .Single()
+            .ExecuteWithoutResults()
 
     let neoBlockOfBlock (block: Block) hash height =
         let timestamp = new DateTimeOffset(block.Timestamp, new TimeSpan(0L))
@@ -198,10 +194,10 @@ module LoadBlockChainModel =
             { Hash = hash
               Timestamp = timestamp
               Height = height }
-        let savedNeoBlock = saveNeoBlock neoBlock
+        saveNeoBlock neoBlock
         for trans in block.Transactions do
             neoTransOfTrans trans hash timestamp
-        savedNeoBlock
+        neoBlock
  
     let scanBlocks (prevBlock, currBlock, i) (nextBlock: Block) =
         match prevBlock, currBlock with
@@ -235,7 +231,7 @@ module LoadBlockChainModel =
         parser.NewBlock 
         |> Event.scan scanBlocks (None, None, 0L) 
         |> ignore
-        parser.StartPushBetween 0 10
+        parser.StartPushBetween 0 50
 
     load()
 
