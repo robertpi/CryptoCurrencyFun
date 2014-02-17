@@ -49,6 +49,7 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
+    <Compile Include="Args.fs" />
     <Compile Include="Client.fs" />
     <None Include="app.config" />
   </ItemGroup>
@@ -62,8 +63,11 @@
     <Reference Include="Neo4jClient">
       <HintPath>..\..\..\lib\Neo4jClient.1.0.0.644\lib\net40\Neo4jClient.dll</HintPath>
     </Reference>
-    <Reference Include="Neo4jClient">
+    <Reference Include="Newtonsoft.Json">
       <HintPath>..\..\..\lib\Newtonsoft.Json.5.0.8\lib\net40\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="UnionArgParser">
+      <HintPath>..\..\..\lib\UnionArgParser.0.5.9\lib\net40\UnionArgParser.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
