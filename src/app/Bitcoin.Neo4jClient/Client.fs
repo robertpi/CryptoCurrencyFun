@@ -37,22 +37,20 @@ module LoadBlockChainModel =
     type PayDirection = To | From
     type Source = Dir of string | File of string
 
-    // TODO make db location configurable
-    // TODO tidy up db access
+    // TODO is it worth moving any function that touches client into a seperate file?
     // TODO make restartable (need to store byte index)
     let doLoad url source messageScope =
         let client = new GraphClient(new Uri(url))
         client.Connect()
 
-        // TODO feels like we could have a generic save method
-        let saveNeoOutput transactionHash neoOutput =
+        let saveInputOutputRecord label transactionHash record =
             client.Cypher
-                .Create("(o:Output {param})")
-                .WithParam("param", neoOutput)
+                .Create(sprintf "(o:%s {param})" label)
+                .WithParam("param", record)
                 .With("o")
                 .Match("(t:Transaction)")
                 .Where(fun t -> t.TransactionHash = transactionHash)
-                .CreateUnique("t-[:output]->o")
+                .CreateUnique(sprintf "t-[:%s]->o" (label.ToLowerInvariant()))
                 .ExecuteWithoutResults()
 
         let payAddress direction transactionHash address value transTime =
@@ -75,25 +73,6 @@ module LoadBlockChainModel =
                 .WithParam("time", transTime)
                 .ExecuteWithoutResults()
 
-        let neoOutputOfOutput transactionHash transTime i (output: Output): NeoOutput =
-            let extractAddressFromScript canonicalScript =
-                match canonicalScript with
-                | PayToPublicKey address -> address.AsString
-                | PayToAddress address -> address.AsString
-            let address = output.CanonicalOutputScript |> Option.map extractAddressFromScript
-            let address =
-                match address with 
-                | Some address -> 
-                    payAddress To transactionHash address output.Value transTime
-                    address 
-                | _ -> null
-            let output =
-                { Value = output.Value
-                  Address = address
-                  Index = i }
-            saveNeoOutput transactionHash output
-            output
-
         let lookupTransaction transHash i =
             client.Cypher
                 .Match("(t:Transaction)-[:output]->(o:Output)")
@@ -103,42 +82,11 @@ module LoadBlockChainModel =
                 .Results
                 .SingleOrDefault()
 
-        let saveNeoInput transactionHash neoInput =
-            client.Cypher
-                .Create("(i:Input {param})")
-                .WithParam("param", neoInput)
-                .With("i")
-                .Match("(t:Transaction)")
-                .Where(fun t -> t.TransactionHash = transactionHash)
-                .CreateUnique("t-[:input]->i")
-                .ExecuteWithoutResults()
 
-        let neoInputOfInput transactionHash transTime (input: Input) =
-            let inputHash = Conversion.littleEndianBytesToHexString input.InputHash
-            let outputAddress, outputValue =
-                if input.InputTransactionIndex = -1 then
-                    null, 0L
-                else
-                    let output = lookupTransaction inputHash input.InputTransactionIndex
-                    if output :> obj <> null then
-                        output.Address, output.Value
-                    else
-                        printfn "can't find input %s %i" inputHash input.InputTransactionIndex
-                        null, 0L
-            if outputAddress <> null then
-                payAddress From transactionHash outputAddress outputValue transTime
-            let input = 
-                { Hash =  inputHash
-                  Index = input.InputTransactionIndex
-                  Address = outputAddress
-                  Value = outputValue }
-            saveNeoInput transactionHash input
-            input
-
-        let saveNeoTrans neoTrans =
+        let saveRecord label record =
             client.Cypher
-                .Create("(t:Transaction {param})")
-                .WithParam("param", neoTrans)
+                .Create(sprintf "(b:%s {param})" label)
+                .WithParam("param", record)
                 .ExecuteWithoutResults()
 
         let tansactionRelations trans blockHash =
@@ -160,13 +108,54 @@ module LoadBlockChainModel =
                 .WithParam("outputparam", trans.TotalOutputs)
                 .ExecuteWithoutResults()
 
+        let neoOutputOfOutput transactionHash transTime i (output: Output): NeoOutput =
+            let extractAddressFromScript canonicalScript =
+                match canonicalScript with
+                | PayToPublicKey address -> address.AsString
+                | PayToAddress address -> address.AsString
+            let address = output.CanonicalOutputScript |> Option.map extractAddressFromScript
+            let address =
+                match address with 
+                | Some address -> 
+                    payAddress To transactionHash address output.Value transTime
+                    address 
+                | _ -> null
+            let output =
+                { Value = output.Value
+                  Address = address
+                  Index = i }
+            saveInputOutputRecord "Output" transactionHash output
+            output
+
+        let neoInputOfInput transactionHash transTime (input: Input) =
+            let inputHash = Conversion.littleEndianBytesToHexString input.InputHash
+            let outputAddress, outputValue =
+                if input.InputTransactionIndex = -1 then
+                    null, 0L
+                else
+                    let output = lookupTransaction inputHash input.InputTransactionIndex
+                    if output :> obj <> null then
+                        output.Address, output.Value
+                    else
+                        printfn "can't find input %s %i" inputHash input.InputTransactionIndex
+                        null, 0L
+            if outputAddress <> null then
+                payAddress From transactionHash outputAddress outputValue transTime
+            let input = 
+                { Hash =  inputHash
+                  Index = input.InputTransactionIndex
+                  Address = outputAddress
+                  Value = outputValue }
+            saveInputOutputRecord "Input" transactionHash input
+            input
+
         let neoTransOfTrans (trans: Transaction) (hash: string) timestamp =
             let transactionHash = Conversion.littleEndianBytesToHexString trans.TransactionHash
             let emptyTransaction =
                 { TransactionHash = transactionHash
                   TotalInputs = 0L
                   TotalOutputs = 0L }
-            saveNeoTrans emptyTransaction
+            saveRecord "Transaction" emptyTransaction
             let inputs = Array.map (neoInputOfInput transactionHash timestamp)  trans.Inputs
             let outputs = Array.mapi (neoOutputOfOutput transactionHash timestamp) trans.Outputs
             let totalInputs = inputs |> Seq.sumBy (fun x -> x.Value)
@@ -185,11 +174,6 @@ module LoadBlockChainModel =
                 .CreateUnique("p<-[:prev]-c")
                 .ExecuteWithoutResults()
 
-        let saveNeoBlock neoBlock =
-            client.Cypher
-                .Create("(b:Block {param})")
-                .WithParam("param", neoBlock)
-                .ExecuteWithoutResults()
 
         let neoBlockOfBlock (block: Block) hash height =
             let timestamp = new DateTimeOffset(block.Timestamp, new TimeSpan(0L))
@@ -197,7 +181,7 @@ module LoadBlockChainModel =
                 { Hash = hash
                   Timestamp = timestamp
                   Height = height }
-            saveNeoBlock neoBlock
+            saveRecord "Block" neoBlock
             for trans in block.Transactions do
                 neoTransOfTrans trans hash timestamp
             neoBlock
