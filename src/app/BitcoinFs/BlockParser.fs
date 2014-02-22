@@ -276,7 +276,7 @@ type BlockParserStream private (byteStream: seq<byte>) =
         streamEventEvent.Trigger()
     member __.Pull() = 
         BlockParser.readAllMessages (getErrorHandler()) byteStream
-    member __.PullMessages startIndex endIndex = 
+    member __.PullBetween startIndex endIndex = 
         BlockParser.readMessages startIndex endIndex (getErrorHandler()) byteStream
 
     static member FromFile(file: string) =

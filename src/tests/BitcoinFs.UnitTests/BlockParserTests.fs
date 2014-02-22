@@ -42,7 +42,7 @@ let shouldReadFirstThreeMessages() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
     let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
-    let blocks = parser.PullMessages 0 3
+    let blocks = parser.PullBetween 0 3
     printfn "%A" blocks
     for block in blocks |> Seq.skip 1 do
         printfn "%s" (Conversion.littleEndianBytesToHexString block.Hash)
@@ -55,7 +55,7 @@ let shouldReadMessagesFourToFive() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
     let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
-    let blocks = parser.PullMessages 3 4
+    let blocks = parser.PullBetween 3 4
     printfn "%A" blocks
 
 let errorsDir = "/home/robert/code/BitcoinFs/errors"

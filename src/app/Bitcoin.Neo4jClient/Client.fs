@@ -13,11 +13,13 @@ type NeoInput =
     { Hash: string
       Index: int
       Value: int64
+      Script: byte[]
       Address: string }
 
 [<CLIMutable;>]
 type NeoOutput = 
     { Value: int64
+      Script: byte[]
       Address: string
       Index: int }
 
@@ -122,6 +124,7 @@ module LoadBlockChainModel =
                 | _ -> null
             let output =
                 { Value = output.Value
+                  Script = output.OutputScript
                   Address = address
                   Index = i }
             saveInputOutputRecord "Output" transactionHash output
@@ -144,6 +147,7 @@ module LoadBlockChainModel =
             let input = 
                 { Hash =  inputHash
                   Index = input.InputTransactionIndex
+                  Script = input.ResponseScript
                   Address = outputAddress
                   Value = outputValue }
             saveInputOutputRecord "Input" transactionHash input
@@ -215,19 +219,14 @@ module LoadBlockChainModel =
         
         let sw = Stopwatch.StartNew() 
         
-        parser.StreamEnded
-        |> Event.add (fun _ -> 
-            printfn "Done in %O" sw.Elapsed
-            Process.GetCurrentProcess().Kill())
-        
-        parser.NewBlock 
-        |> Event.scan scanBlocks (None, None, 0L) 
-        |> ignore
+        let messages =
+            match messageScope with
+            | Some(startMessage, endMessage) ->
+                parser.PullBetween startMessage endMessage
+            | None -> parser.Pull()
 
-        match messageScope with
-        | Some(startMessage, endMessage) ->
-            parser.StartPushBetween startMessage endMessage
-        | None -> parser.StartPush()
+        Seq.fold scanBlocks (None, None, 0L) messages
+        printfn "Done in %O" sw.Elapsed
 
 
     [<EntryPoint>]
