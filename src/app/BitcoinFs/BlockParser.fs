@@ -29,7 +29,9 @@ type Transaction =
       TransactionHash: array<byte> }
 
 type Block =
-    { Version: int
+    { OffSet: int64
+      Length: int
+      Version: int
       Hash: array<byte>
       MerKleRoot: array<byte>
       Timestamp: DateTime
@@ -158,7 +160,7 @@ module BlockParser =
             let bytesInBlock, _ = Enumerator.take 4 e |> Conversion.bytesToInt32 0
             bytesInBlock
 
-    let readMessage (bytesToProcess: array<byte>) =
+    let readMessage initOffSet (bytesToProcess: array<byte>) =
         if debug then printfn "version 0x%x" debugOffset
         let version, offSet = Conversion.bytesToInt32 0 bytesToProcess
 
@@ -194,7 +196,9 @@ module BlockParser =
 
         let transactions, offSet = transactionsLoop (int numberOfTransactions) offSet []
 
-        { Version = version
+        { OffSet = initOffSet
+          Length = bytesToProcess.Length
+          Version = version
           Hash = hash
           MerKleRoot = merkleRoot
           Timestamp = timestamp
@@ -208,37 +212,42 @@ module BlockParser =
         | Message of Block
         | Error of Exception
 
-    let readMessageHandleError messageBuffer =
+    let readMessageHandleError offSet messageBuffer =
         try
-            let message = readMessage messageBuffer
+            let message = readMessage offSet messageBuffer
             Message message
         with exc ->
             Error exc
 
-    let readMessages firstMessageIndex lastMessageIndex messageErrorHandler (byteStream: seq<byte>) =
+    let readMessages initOffSet firstMessageIndex lastMessageIndex messageErrorHandler (byteStream: seq<byte>) =
         seq { use e = EnumeratorObserver.Create(byteStream.GetEnumerator()) 
               let messagesProcessed = ref 0
+              let offSet = ref initOffSet
               while e.MoreAvailable && !messagesProcessed < lastMessageIndex do
-                let bytesToProcess = readMessageHeader e
-                if bytesToProcess > 0 then
-                    if firstMessageIndex <= !messagesProcessed then
-                        let messageBuffer = Enumerator.take bytesToProcess e
-                        match readMessageHandleError messageBuffer with
-                        | Message message -> yield message
-                        | Error exc -> messageErrorHandler exc messageBuffer  
-                    else
-                        Enumerator.skip bytesToProcess e
-                    incr messagesProcessed }
+                  let bytesToProcess = readMessageHeader e
+                  offSet := !offSet + 8L
+                  if bytesToProcess > 0 then
+                      if firstMessageIndex <= !messagesProcessed then
+                          let messageBuffer = Enumerator.take bytesToProcess e
+                          match readMessageHandleError !offSet messageBuffer with
+                          | Message message -> yield message
+                          | Error exc -> messageErrorHandler exc messageBuffer  
+                      else
+                          Enumerator.skip bytesToProcess e
+                      offSet := !offSet + int64 bytesToProcess + 8L
+                      incr messagesProcessed }
         
-    let readAllMessages messageErrorHandler (byteStream: seq<byte>) =
+    let readAllMessages initOffSet messageErrorHandler (byteStream: seq<byte>) =
         seq { use e = EnumeratorObserver.Create(byteStream.GetEnumerator()) 
+              let offSet = ref initOffSet
               while e.MoreAvailable do
-                let bytesToProcess = readMessageHeader e
-                if bytesToProcess > 0 then
-                    let messageBuffer = Enumerator.take bytesToProcess e
-                    match readMessageHandleError messageBuffer with
-                    | Message message -> yield message
-                    | Error exc -> messageErrorHandler exc messageBuffer }
+                  let bytesToProcess = readMessageHeader e
+                  if bytesToProcess > 0 then
+                      let messageBuffer = Enumerator.take bytesToProcess e
+                      match readMessageHandleError !offSet messageBuffer with
+                      | Message message -> yield message
+                      | Error exc -> messageErrorHandler exc messageBuffer 
+                  offSet := !offSet + int64 bytesToProcess + 8L }
         
 
 type ErrorHandler =
@@ -248,7 +257,7 @@ type ErrorHandler =
 
 exception BlockParserException of (array<byte> * Exception)
 
-type BlockParserStream private (byteStream: seq<byte>) =
+type BlockParserStream private (byteStream: seq<byte>, initOffSet) =
     let blockParsedEvent = new Event<Block>()
     let streamEventEvent = new Event<Unit>()
     let mutable errorHandler = Propagate
@@ -265,24 +274,27 @@ type BlockParserStream private (byteStream: seq<byte>) =
         with get() = errorHandler
         and  set x = errorHandler <- x
     member __.StartPush() = 
-        let blocks = BlockParser.readAllMessages (getErrorHandler()) byteStream
+        let blocks = BlockParser.readAllMessages initOffSet (getErrorHandler()) byteStream
         for block in blocks do 
             blockParsedEvent.Trigger block
         streamEventEvent.Trigger()
     member __.StartPushBetween startIndex endIndex = 
-        let blocks = BlockParser.readMessages startIndex endIndex (getErrorHandler()) byteStream
+        let blocks = BlockParser.readMessages initOffSet startIndex endIndex (getErrorHandler()) byteStream
         for block in blocks do 
             blockParsedEvent.Trigger block
         streamEventEvent.Trigger()
     member __.Pull() = 
-        BlockParser.readAllMessages (getErrorHandler()) byteStream
+        BlockParser.readAllMessages initOffSet (getErrorHandler()) byteStream
     member __.PullBetween startIndex endIndex = 
-        BlockParser.readMessages startIndex endIndex (getErrorHandler()) byteStream
+        BlockParser.readMessages initOffSet startIndex endIndex (getErrorHandler()) byteStream
 
-    static member FromFile(file: string) =
+    static member FromFile (file: string, ?initOffSet) =
+        let initOffSet = defaultArg initOffSet 0L
         let stream = File.getByteStream file
-        new BlockParserStream(stream)
-    static member FromDirectory (dir: string) (fileSpec: string) =
-        let stream = Directory.getByteStreamOfFiles dir fileSpec 
-        new BlockParserStream(stream)
+        new BlockParserStream(stream, initOffSet)
+    static member FromDirectory (dir: string, fileSpec: string, ?initOffSet) =
+        let initOffSet = defaultArg initOffSet 0L
+        // TODO file spec is ignored
+        let stream = BitcoinDataDir.streamFromOffSet dir initOffSet 
+        new BlockParserStream(stream, initOffSet)
 

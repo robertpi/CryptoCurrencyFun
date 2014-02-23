@@ -52,6 +52,7 @@
     <Compile Include="Misc.fs" />
     <Compile Include="Address.fs" />
     <Compile Include="ScriptParser.fs" />
+    <Compile Include="BitcoinDataDir.fs" />
     <Compile Include="BlockParser.fs" />
   </ItemGroup>
   <ItemGroup>

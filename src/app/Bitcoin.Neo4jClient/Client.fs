@@ -33,11 +33,17 @@ type NeoTransaction =
 type NeoBlock = 
     { Hash: string
       Timestamp: DateTimeOffset
-      Height: int64 } 
+      Height: int64
+      OffSet: int64
+      Length: int } 
 
 module LoadBlockChainModel =
     type PayDirection = To | From
     type Source = Dir of string | File of string
+    type Mode = 
+        | Between of int * int 
+        | Limit of int 
+        | All
 
     // TODO is it worth moving any function that touches client into a seperate file?
     // TODO make restartable (need to store byte index)
@@ -109,6 +115,16 @@ module LoadBlockChainModel =
                 .Set("t.TotalOutputs = {outputparam}")
                 .WithParam("outputparam", trans.TotalOutputs)
                 .ExecuteWithoutResults()
+
+        let getLastBlock() =
+            client.Cypher
+                .Match("(b:Block)")
+                .With("b")
+                .OrderByDescending("b.Height")
+                .Return<NeoBlock>("b")
+                .Limit(new Nullable<int>(1))
+                .Results
+                .SingleOrDefault()
 
         let neoOutputOfOutput transactionHash transTime i (output: Output): NeoOutput =
             let extractAddressFromScript canonicalScript =
@@ -184,7 +200,9 @@ module LoadBlockChainModel =
             let neoBlock = 
                 { Hash = hash
                   Timestamp = timestamp
-                  Height = height }
+                  Height = height
+                  OffSet = block.OffSet
+                  Length = block.Length }
             saveRecord "Block" neoBlock
             for trans in block.Transactions do
                 neoTransOfTrans trans hash timestamp
@@ -210,22 +228,30 @@ module LoadBlockChainModel =
             rawClient.ExecuteCypher(query "CREATE INDEX ON :Block(Height)")
             rawClient.ExecuteCypher(query "CREATE INDEX ON :Transaction(TransactionHash)")
 
-        addIndexes()
+        let lastBlock = getLastBlock()
+
+        let height, offSet = 
+            if lastBlock :> obj = null then 
+                addIndexes()
+                0L, 0L 
+            else lastBlock.Height, lastBlock.OffSet
 
         let parser =
             match source with
-            | Dir target -> BlockParserStream.FromDirectory target "*.dat"
+            | Dir target -> 
+                BlockParserStream.FromDirectory (target, "*.dat", initOffSet = offSet)
             | File target -> BlockParserStream.FromFile target
         
         let sw = Stopwatch.StartNew() 
         
         let messages =
             match messageScope with
-            | Some(startMessage, endMessage) ->
+            | Between(startMessage, endMessage) ->
                 parser.PullBetween startMessage endMessage
-            | None -> parser.Pull()
+            | Limit limit -> parser.Pull() |> Seq.take limit
+            | All -> parser.Pull()
 
-        Seq.fold scanBlocks (None, None, 0L) messages
+        Seq.fold scanBlocks (None, None, height) messages
         printfn "Done in %O" sw.Elapsed
 
 
@@ -236,16 +262,18 @@ module LoadBlockChainModel =
         let results = parser.Parse(args)
         let dbUrl = results.GetResult (<@ Database_url @>, defaultValue = "http://localhost:7474/db/data")
         let target = 
-            if results.Contains <@ Bitcoin_dir @> then
-                Dir (results.GetResult (<@ Bitcoin_dir @>))
+            if results.Contains <@ Bitcoin_file @> then
+                File (results.GetResult (<@ Bitcoin_file @>))
             else 
-                File (results.GetResult (<@ Bitcoin_file @>, defaultValue = "/home/robert/.bitcoin/blocks/blk00000.dat"))
+                Dir (results.GetResult ((<@ Bitcoin_dir @>), defaultValue = "/home/robert/.bitcoin/blocks"))
 
         let messageScope =
             if results.Contains <@ Message_between @> then
-                Some (results.GetResult (<@ Message_between @>))
+                Between (results.GetResult (<@ Message_between @>))
+            elif results.Contains <@ Limit_to @> then
+                Limit (results.GetResult (<@ Limit_to @>))
             else
-                None
+                All
 
         doLoad dbUrl target messageScope
 

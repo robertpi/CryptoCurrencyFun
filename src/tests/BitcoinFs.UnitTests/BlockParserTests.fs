@@ -2209,7 +2209,7 @@ let message6 = [|0x1uy;
 [<Test>]
 let readFailedMessage() =
     printfn "message.Length %i" message6.Length
-    let block = BlockParser.readMessage message6
+    let block = BlockParser.readMessage 0L message6
     printfn "%A" block
 
 [<Test>]

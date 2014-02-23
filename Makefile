@@ -7,6 +7,6 @@ test:
 
 reload:
 	mono lib/FAKE.2.4.2.0/tools/FAKE.exe build.fsx BuildTest
-	rm -rf ~/Downloads/neo4j-community-2.0.0/data/graph.db/
-	~/Downloads/neo4j-community-2.0.0/bin/neo4j restart
-	mono build/BitcoinFs.Neo4jClient.exe --message-between 0 50
+	#rm -rf ~/Downloads/neo4j-community-2.0.0/data/graph.db/
+	#~/Downloads/neo4j-community-2.0.0/bin/neo4j restart
+	mono build/BitcoinFs.Neo4jClient.exe --limit-to 50
