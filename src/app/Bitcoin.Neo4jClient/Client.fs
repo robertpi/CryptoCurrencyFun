@@ -35,7 +35,10 @@ type NeoBlock =
       Timestamp: DateTimeOffset
       Height: int64
       OffSet: int64
-      Length: int } 
+      Length: int
+      Target: int
+      Nonce: int
+      NumberOfTransactions: int64 } 
 
 module LoadBlockChainModel =
     type PayDirection = To | From
@@ -202,7 +205,10 @@ module LoadBlockChainModel =
                   Timestamp = timestamp
                   Height = height
                   OffSet = block.OffSet
-                  Length = block.Length }
+                  Length = block.Length
+                  Target = block.Target 
+                  Nonce = block.Nonce
+                  NumberOfTransactions = block.NumberOfTransactions }
             saveRecord "Block" neoBlock
             for trans in block.Transactions do
                 neoTransOfTrans trans hash timestamp
