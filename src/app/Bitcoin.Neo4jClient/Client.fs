@@ -26,6 +26,7 @@ type NeoOutput =
 [<CLIMutable>]
 type NeoTransaction = 
     { TransactionHash: string
+      IsRewardBlock: bool
       TotalInputs: int64
       TotalOutputs: int64 }
 
@@ -41,6 +42,7 @@ type NeoBlock =
       NumberOfTransactions: int64 } 
 
 module LoadBlockChainModel =
+    let logger = Log.loggerFac.GetCurrentClassLogger()
     type PayDirection = To | From
     type Source = Dir of string | File of string
     type Mode = 
@@ -117,6 +119,8 @@ module LoadBlockChainModel =
                 .WithParam("inputparam", trans.TotalInputs)
                 .Set("t.TotalOutputs = {outputparam}")
                 .WithParam("outputparam", trans.TotalOutputs)
+                .Set("t.IsRewardBlock = {rewardparam}")
+                .WithParam("rewardparam", trans.IsRewardBlock)
                 .ExecuteWithoutResults()
 
         let getLastBlock() =
@@ -159,7 +163,7 @@ module LoadBlockChainModel =
                     if output :> obj <> null then
                         output.Address, output.Value
                     else
-                        printfn "can't find input %s %i" inputHash input.InputTransactionIndex
+                        logger.Warn(sprintf "can't find input %s %i" inputHash input.InputTransactionIndex)
                         null, 0L
             if outputAddress <> null then
                 payAddress From transactionHash outputAddress outputValue transTime
@@ -176,15 +180,17 @@ module LoadBlockChainModel =
             let transactionHash = Conversion.littleEndianBytesToHexString trans.TransactionHash
             let emptyTransaction =
                 { TransactionHash = transactionHash
+                  IsRewardBlock = false
                   TotalInputs = 0L
                   TotalOutputs = 0L }
             saveRecord "Transaction" emptyTransaction
             let inputs = Array.map (neoInputOfInput transactionHash timestamp)  trans.Inputs
+            let isRewardBlock = inputs |> Array.exists (fun x -> x.Index = -1)
             let outputs = Array.mapi (neoOutputOfOutput transactionHash timestamp) trans.Outputs
             let totalInputs = inputs |> Seq.sumBy (fun x -> x.Value)
             // TODO this assumes when addresss is none, the payment goes to the minor, this is usually but not always true
             let totalOutputs = outputs |> Seq.filter (fun x -> x.Address <> null) |> Seq.sumBy (fun x -> x.Value)
-            let transaction = {emptyTransaction with TotalInputs = totalInputs; TotalOutputs = totalOutputs}
+            let transaction = {emptyTransaction with TotalInputs = totalInputs; TotalOutputs = totalOutputs; IsRewardBlock = isRewardBlock}
             updateTransaction transaction
             tansactionRelations transaction hash
 
@@ -257,8 +263,8 @@ module LoadBlockChainModel =
             | Limit limit -> parser.Pull() |> Seq.take limit
             | All -> parser.Pull()
 
-        Seq.fold scanBlocks (None, None, height) messages
-        printfn "Done in %O" sw.Elapsed
+        Seq.fold scanBlocks (None, None, height) messages |> ignore
+        logger.Info(sprintf "Done in %O" sw.Elapsed)
 
 
     [<EntryPoint>]

@@ -62,6 +62,9 @@
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Numerics" />
+    <Reference Include="NLog">
+      <HintPath>..\..\..\lib\NLog.2.1.0\lib\net40\NLog.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

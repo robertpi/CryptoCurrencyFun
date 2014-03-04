@@ -4,6 +4,9 @@ open System.Collections.Generic
 open System.IO
 open System.Text
 
+module Log =
+    let loggerFac = new NLog.LogFactory()
+
 module File =
     let getByteStream file =
         seq { use stream = File.OpenRead(file)

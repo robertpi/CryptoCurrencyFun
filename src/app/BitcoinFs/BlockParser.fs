@@ -41,6 +41,7 @@ type Block =
       Transactions: array<Transaction> }
 
 module BlockParser = 
+    let logger = Log.loggerFac.GetCurrentClassLogger()
     let debug = false
     let debugOffset = 0 // use in cases where the message doesn't start at begin
 
@@ -49,13 +50,13 @@ module BlockParser =
     let readOutput offSet (bytesToProcess: array<byte>) =
         let output, offSet = Conversion.bytesToInt64 offSet bytesToProcess
         
-        if debug then printfn "output 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "output 0x%x" offSet)
         let challengeScriptLength, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
-        if debug then printfn "challengeScriptLength value 0x%x"  challengeScriptLength
+        logger.Debug(sprintf "challengeScriptLength value 0x%x"  challengeScriptLength)
 
         let challengeScriptLengthInt = int challengeScriptLength
         
-        if debug then printfn "challengeScript 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "challengeScript 0x%x" offSet)
         let challengeScript, offSet = Conversion.readByteBlock offSet challengeScriptLengthInt bytesToProcess
 
         let parsedScript = ScriptParser.parseScript challengeScript
@@ -70,32 +71,31 @@ module BlockParser =
     let readTransactions offSet (bytesToProcess: array<byte>) =
         let initalOffSet = offSet
 
-        if debug then printfn "transactionVersion 0x%x" offSet
+        logger.Debug(sprintf "transactionVersion 0x%x" offSet)
         let transactionVersion, offSet = Conversion.bytesToInt32 offSet bytesToProcess
 
-        if debug then printfn "numberOfInputs 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "numberOfInputs 0x%x" offSet)
         let numberOfInputs, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
 
         let rec inputsLoop remainingInputs offSet acc =
             if remainingInputs > 0 then
-                if debug then 
-                    printfn "inputHash 0x%x numberOfInputs 0x%x remainingInputs 0x%x" 
-                        (offSet + debugOffset) numberOfInputs remainingInputs
+                logger.Debug(sprintf "inputHash 0x%x numberOfInputs 0x%x remainingInputs 0x%x" 
+                                      offSet numberOfInputs remainingInputs)
                 let inputHash, offSet = bytesToProcess.[offSet .. offSet + 31], offSet + 32
 
-                if debug then printfn "inputTransactionIndex 0x%x" (offSet + debugOffset)
+                logger.Debug(sprintf "inputTransactionIndex 0x%x" offSet)
                 let inputTransactionIndex, offSet = Conversion.bytesToInt32 offSet bytesToProcess
 
-                if debug then printfn "inputTransactionIndex value 0x%x" inputTransactionIndex
+                logger.Debug(sprintf "inputTransactionIndex value 0x%x" inputTransactionIndex)
 
-                if debug then printfn "responseScriptLength 0x%x" (offSet + debugOffset)
+                logger.Debug(sprintf "responseScriptLength 0x%x" offSet)
                 let responseScriptLength, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
                 let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
                 
-                if debug then printfn "responseScript 0x%x responseScriptLengthInt %x" (offSet + debugOffset) responseScriptLengthInt
+                logger.Debug(sprintf "responseScript 0x%x responseScriptLengthInt %x" offSet responseScriptLengthInt)
                 let responseScript, offSet = Conversion.readByteBlock offSet responseScriptLengthInt  bytesToProcess
                 
-                if debug then printfn "sequenceNumber 0x%x" (offSet + debugOffset)
+                logger.Debug(sprintf "sequenceNumber 0x%x" offSet)
                 let sequenceNumber, offSet = Conversion.bytesToInt32 offSet bytesToProcess
 
                 // nice sanity check that we've correctly found end of the responseScript
@@ -120,7 +120,7 @@ module BlockParser =
         let inputs, offSet = inputsLoop (int numberOfInputs)  offSet []
 
 
-        if debug then printfn "numberOfOutputs 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "numberOfOutputs 0x%x" offSet)
         let numberOfOutputs, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
 
         let rec outputLoop remainingOutputs offSet acc =
@@ -134,13 +134,13 @@ module BlockParser =
         
         let outputs, offSet = outputLoop (int numberOfOutputs) offSet []
         
-        if debug then printfn "lockTime 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "lockTime 0x%x" offSet)
         let lockTime, offSet = Conversion.bytesToInt32 offSet bytesToProcess
         
         let sha256 = SHA256.Create()
         let transactionHash = sha256.ComputeHash(sha256.ComputeHash(bytesToProcess, initalOffSet, offSet - initalOffSet))
 
-        if debug then printfn "final from transaction 0x%x lockTime 0x%x" (offSet + debugOffset) lockTime
+        logger.Debug(sprintf "final from transaction 0x%x lockTime 0x%x" offSet lockTime)
         
         { TransactionVersion = transactionVersion
           NumberOfInputs = numberOfInputs
@@ -161,29 +161,29 @@ module BlockParser =
             bytesInBlock
 
     let readMessage initOffSet (bytesToProcess: array<byte>) =
-        if debug then printfn "version 0x%x" debugOffset
+        logger.Debug(sprintf "version 0x%x" debugOffset)
         let version, offSet = Conversion.bytesToInt32 0 bytesToProcess
 
-        if debug then printfn "hash 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "hash 0x%x" offSet)
         let hash, offSet = Conversion.readByteBlock offSet 32 bytesToProcess
 
-        if debug then printfn "merKleRoot 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "merKleRoot 0x%x" offSet)
         let merkleRoot, offSet = Conversion.readByteBlock offSet 32 bytesToProcess
         
-        if debug then printfn "timestamp 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "timestamp 0x%x" offSet)
         let timestampInt, offSet = Conversion.bytesToInt32 offSet bytesToProcess
         let timestamp = Conversion.dateTimeOfUnixEpoc timestampInt
         
-        if debug then printfn "target 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "target 0x%x" offSet)
         let target, offSet = Conversion.bytesToInt32 offSet bytesToProcess
         
-        if debug then printfn "nonce 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "nonce 0x%x" offSet)
         let nonce, offSet = Conversion.bytesToInt32 offSet bytesToProcess
         
-        if debug then printfn "numberOfTransactions 0x%x" (offSet + debugOffset)
+        logger.Debug(sprintf "numberOfTransactions 0x%x" offSet)
         let numberOfTransactions, offSet = Conversion.decodeVariableLengthInt offSet bytesToProcess
 
-        if debug then printfn "numberOfTransactions value 0x%x" numberOfTransactions
+        logger.Debug(sprintf "numberOfTransactions value 0x%x" numberOfTransactions)
 
         let rec transactionsLoop remainingTransactions offSet acc =
             let transaction, offSet' = readTransactions offSet bytesToProcess
