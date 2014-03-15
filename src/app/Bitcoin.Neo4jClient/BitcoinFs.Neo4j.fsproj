@@ -50,6 +50,7 @@
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
     <Compile Include="Args.fs" />
+    <Compile Include="LoggingConfig.fs" />
     <Compile Include="Client.fs" />
     <None Include="app.config" />
   </ItemGroup>

@@ -3,6 +3,7 @@ open System
 open System.Diagnostics
 open System.Collections.Generic
 open System.Security.Cryptography
+open NLog
 
 type Output =
     { Value: int64
@@ -41,7 +42,7 @@ type Block =
       Transactions: array<Transaction> }
 
 module BlockParser = 
-    let logger = Log.loggerFac.GetCurrentClassLogger()
+    let logger = LogManager.GetLogger("BlockParser")
     let debug = false
     let debugOffset = 0 // use in cases where the message doesn't start at begin
 

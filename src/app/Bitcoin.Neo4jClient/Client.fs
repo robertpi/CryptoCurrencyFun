@@ -7,6 +7,7 @@ open BitcoinFs
 open Neo4jClient
 open Neo4jClient.Cypher
 open UnionArgParser
+open NLog
 
 [<CLIMutable>]
 type NeoInput = 
@@ -42,7 +43,7 @@ type NeoBlock =
       NumberOfTransactions: int64 } 
 
 module LoadBlockChainModel =
-    let logger = Log.loggerFac.GetCurrentClassLogger()
+    let logger = LogManager.GetLogger("LoadBlockChainModel")
     type PayDirection = To | From
     type Source = Dir of string | File of string
     type Mode = 
@@ -51,7 +52,6 @@ module LoadBlockChainModel =
         | All
 
     // TODO is it worth moving any function that touches client into a seperate file?
-    // TODO make restartable (need to store byte index)
     let doLoad url source messageScope =
         let client = new GraphClient(new Uri(url))
         client.Connect()
@@ -264,6 +264,7 @@ module LoadBlockChainModel =
             | All -> parser.Pull()
 
         Seq.fold scanBlocks (None, None, height) messages |> ignore
+
         logger.Info(sprintf "Done in %O" sw.Elapsed)
 
 
@@ -286,6 +287,8 @@ module LoadBlockChainModel =
                 Limit (results.GetResult (<@ Limit_to @>))
             else
                 All
+
+        LoggingConfig.configureLogs true false NLog.LogLevel.Info
 
         doLoad dbUrl target messageScope
 
