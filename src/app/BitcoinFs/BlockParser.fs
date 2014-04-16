@@ -4,42 +4,7 @@ open System.Diagnostics
 open System.Collections.Generic
 open System.Security.Cryptography
 open NLog
-
-type Output =
-    { Value: int64
-      OutputScriptLength: int64
-      OutputScript: array<byte>
-      ParsedOutputScript: option<array<Op>>
-      CanonicalOutputScript: option<CanonicalOutputScript> }
-
-type Input =
-    { InputHash: array<byte>
-      InputTransactionIndex: int
-      ResponseScriptLength: int64
-      ResponseScript: array<byte>
-      ParsedResponseScript: option<array<Op>>
-      SequenceNumber: int }
-
-type Transaction = 
-    { TransactionVersion: int
-      NumberOfInputs: int64
-      Inputs: array<Input>
-      NumberOfOutputs: int64
-      Outputs: array<Output>
-      LockTime: int
-      TransactionHash: array<byte> }
-
-type Block =
-    { OffSet: int64
-      Length: int
-      Version: int
-      Hash: array<byte>
-      MerKleRoot: array<byte>
-      Timestamp: DateTime
-      Target: int
-      Nonce: int
-      NumberOfTransactions: int64
-      Transactions: array<Transaction> }
+open BitcoinFs.Messages
 
 module BlockParser = 
     let logger = LogManager.GetLogger("BlockParser")
