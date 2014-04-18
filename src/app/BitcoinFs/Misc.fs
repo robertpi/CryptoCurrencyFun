@@ -115,6 +115,37 @@ module Conversion =
             int64 res, offSet
         | _ -> failwith "unexpectedly large byte :)"
 
+    let encodeVariableLengthInt (i: int64) =
+        match i with
+        | _ when i < 0xfdL -> [| byte i |]
+        | _ when i <= 0xffffL -> [| yield 0xfduy; yield! BitConverter.GetBytes(i) |> Seq.take 2 |]
+        | _ when i <= 0xffffffffL -> [| yield 0xfeuy; yield! BitConverter.GetBytes(i) |> Seq.take 4 |]
+        | _ -> [| yield 0xffuy; yield! BitConverter.GetBytes(i) |]
+
+    let stringToVariableLengthString (s: String) =
+        let bytes = Encoding.ASCII.GetBytes s
+        [| yield! encodeVariableLengthInt bytes.LongLength; yield! bytes |]
+
+    let variableLengthStringToString offSet buffer =
+        let longLength, offSet = decodeVariableLengthInt offSet buffer
+        let length = int longLength
+        let stringBytes = buffer.[offSet .. offSet + length]
+        Encoding.ASCII.GetString(stringBytes), offSet + length + 1
+
+module Time =
+    let private epoch = new DateTime(1970, 1, 1, 0, 0, 0, 0)
+
+    let getUnixTime (date: DateTime) =
+        let span = date - epoch
+        span.TotalSeconds |> int64
+
+    let getUnixTimeNow () =
+        getUnixTime DateTime.Now
+
+module Const =
+    let MagicNumber = 0xD9B4BEF9u
+    let Rnd = new Random()
+
 [<Interface>]
 type IVector =
     abstract member Bytes: array<byte> 

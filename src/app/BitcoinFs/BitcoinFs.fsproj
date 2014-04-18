@@ -57,6 +57,9 @@
     <Compile Include="ScriptParser.fs" />
     <Compile Include="BitcoinDataDir.fs" />
     <Compile Include="BlockParser.fs" />
+    <Compile Include="AsyncSockets.fs" />
+    <Compile Include="MessageProcessing.fs" />
+    <Compile Include="PeerToPeer.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
