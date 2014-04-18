@@ -5,7 +5,7 @@ open NLog.Targets
 open NLog.Config
 
 let port = 8333
-let seedHost = "bitseed.xf2.org"
+let seedHost = "seed.bitcoin.sipa.be"
 
 [<EntryPoint>]
 let main argv =

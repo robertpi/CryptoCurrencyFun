@@ -33,7 +33,7 @@ let inline setBuffer (buf: ArraySegment<byte>) (args: SocketAsyncEventArgs) =
 
 let OpenSendSocket (address: IPAddress) port =
     let endPoint = new IPEndPoint(address, port)
-    let socket = new Socket(address.AddressFamily,  SocketType.Stream, ProtocolType.Tcp)
+    let socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
     asyncDo socket.ConnectAsync (fun x -> x.RemoteEndPoint <- endPoint)
         (fun a -> a.ConnectSocket)
 

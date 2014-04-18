@@ -21,8 +21,15 @@ type RawMessageHeader =
           Length = length
           Checksum = checksum }
     member x.Serialize() =
+        let commandBytes = Encoding.ASCII.GetBytes(x.Command) 
+        let padLength = 12 - commandBytes.Length
+        let paddedCommand = 
+            if padLength = 0 then
+                commandBytes
+            else
+                [| yield! commandBytes; yield! Array.zeroCreate padLength; |]
         [| yield! BitConverter.GetBytes(x.Magic)
-           yield! Conversion.stringToVariableLengthString x.Command
+           yield! paddedCommand
            yield! BitConverter.GetBytes(x.Length)
            yield! BitConverter.GetBytes(x.Checksum) |]
     static member Create magic command length checkSum =
@@ -30,6 +37,7 @@ type RawMessageHeader =
           Command = command
           Length = length
           Checksum = checkSum }
+        
         
 
 type NetworkAddress = 
