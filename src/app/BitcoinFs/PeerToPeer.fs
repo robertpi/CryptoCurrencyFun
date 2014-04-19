@@ -1,0 +1,172 @@
+﻿namespace BitcoinFs
+open System
+open System.Net
+open System.Net.Sockets
+open System.Security.Cryptography
+open NLog
+open BitcoinFs.CommonMessages
+open BitcoinFs.Messages
+
+type internal SendConnections =
+    | Add of Socket
+    | Remove of Socket
+    | Broadcast of byte[]
+    | SendMessage of IPAddress * byte[]
+
+
+type PeerToPeerConnectionManager(port, seedDns) =
+    let logger = LogManager.GetCurrentClassLogger()
+
+    let findInitalPeers() =
+        Dns.GetHostAddresses(seedDns)
+
+    let sendMessage socket buffer =
+        AsyncSockets.Send socket (new ArraySegment<byte>(buffer))
+        |> Async.Start
+        logger.Info(sprintf "Sending %O message length %i" socket.RemoteEndPoint buffer.Length)
+
+    let broadcast sockets buffer =
+        let buffer' = new ArraySegment<byte>(buffer)
+        for socket in sockets do
+            sendMessage socket buffer
+
+    let addressOfEndpoint (endPoint: EndPoint) =
+        match endPoint with
+        | :? IPEndPoint as ipep -> ipep.Address, ipep.Port
+        | _ -> null, 0
+
+    let getRemoteAddress (socket: Socket) =
+        addressOfEndpoint socket.RemoteEndPoint
+
+    let getLocalAddress (socket: Socket) =
+        addressOfEndpoint socket.LocalEndPoint
+
+    let activeSendConnections =
+        MailboxProcessor.Start(fun box ->
+                                    let rec connectionLoop (connections: ResizeArray<Socket>) =
+                                        async { let! msg = box.Receive()
+                                                match msg with
+                                                | Add socket -> 
+                                                    connections.Add socket
+                                                    return! connectionLoop connections
+                                                | Remove socket -> 
+                                                    connections.Remove  |> ignore
+                                                    return! connectionLoop connections
+                                                | Broadcast buffer ->
+                                                    broadcast (connections.ToArray()) buffer
+                                                    return! connectionLoop connections
+                                                | SendMessage (address, buffer) ->
+                                                    let socket = 
+                                                        connections 
+                                                        |> Seq.tryFind (fun x -> getRemoteAddress x |> fst = address)
+                                                    match socket with
+                                                    | Some socket -> sendMessage socket buffer
+                                                    | None -> logger.Error(sprintf "failed to send message to %O" address)
+                                                    return! connectionLoop connections }
+                                    connectionLoop (new ResizeArray<Socket>()))
+
+    let sendMessageTo address messageBuffer =
+        activeSendConnections.Post(SendMessage(address, messageBuffer))
+
+    let startReadLoop socket =
+
+        let rec processSegements header (segments: ResizeArray<byte[]>) =
+
+            let restart buffer =
+                let newSegments = new ResizeArray<byte[]>()
+                newSegments.Add(buffer)
+                processSegements None segments
+
+            let totalRead = segments |> Seq.sumBy (fun x -> x.Length)
+            let header =
+                if Option.isNone header && totalRead > RawMessageHeader.HeaderLength then
+                    let totalMessageBuffer = Seq.concat segments |> Seq.toArray
+                    let header = RawMessageHeader.Parse totalMessageBuffer
+                    Some header
+                else
+                    header
+            let result = 
+                match header with
+                | Some header -> MessageProcessing.checkMessage header totalRead segments 
+                | None -> Incomplete
+            match result with
+            | Incomplete -> header, segments
+            | Corrupt(remainder) when remainder.Length > 0 -> restart remainder
+            | Corrupt(_) -> None, new ResizeArray<byte[]>()
+            | Complete(message, remainder) when remainder.Length > 0 -> 
+                let address = getRemoteAddress socket |> fst
+                MessageProcessing.processMessage header.Value message (sendMessageTo address)
+                restart remainder
+            | Complete(message, _) -> 
+                let address = getRemoteAddress socket |> fst
+                MessageProcessing.processMessage header.Value message (sendMessageTo address)
+                None, new ResizeArray<byte[]>()
+
+        let rec loop header (segments: ResizeArray<byte[]>) =
+            async { try
+                        let buffer = new ArraySegment<byte>(Array.zeroCreate 1024)
+                        let! read = AsyncSockets.Receive socket buffer
+                        if read > 0 then
+                            logger.Debug(sprintf "recieved %i" read)
+                            let reallyReadBuffer = buffer.Array.[0 .. read - 1]
+                            segments.Add reallyReadBuffer
+                        let header, result = processSegements header segments
+                        return! loop header segments
+                    with ex ->
+                        logger.Error(printf "reading failed for %O exception was %O" socket.RemoteEndPoint ex)
+                        activeSendConnections.Post(Remove socket) }
+        loop None (new ResizeArray<byte[]>())
+
+    let createAndStoreConnection address =
+        async { try
+                    logger.Info(sprintf "trying to connect to %O" address)
+                    let! conn = AsyncSockets.OpenSendSocket address port
+                    activeSendConnections.Post (Add conn)
+                    let addressRemote, portRemote = getRemoteAddress conn
+                    let addressLocal, portLocal = getLocalAddress conn
+                    let version = 
+                        BitcoinFs.Messages.Version.CreateMyVersion 
+                            addressRemote (portRemote |> uint16) addressLocal (portLocal |> uint16)
+                    let versionBuffer = version.Serialize()
+                    let sha256 = SHA256.Create()
+                    let hash = sha256.ComputeHash(sha256.ComputeHash(versionBuffer))
+                    let checkSum, offset = Conversion.bytesToUInt32 0 hash
+                    let header = 
+                        BitcoinFs.CommonMessages.RawMessageHeader.Create 
+                            Const.MagicNumber "version" (uint32 versionBuffer.Length) checkSum
+                    let finishedBuffer = [| yield! header.Serialize(); yield! versionBuffer |]
+                    sendMessageTo address finishedBuffer
+                    startReadLoop conn |> Async.Start
+                    logger.Info(sprintf "connected to %O!" address)
+                with ex -> 
+                    logger.Error(sprintf "connection to address %O failed %O" address ex) }
+
+    let startAcceptLoop() =
+        // why? because msdn says so ... http://msdn.microsoft.com/en-us/library/dz10xcwh(v=vs.110).aspx
+        let address = Dns.GetHostAddresses(Dns.GetHostName())
+        let ipAddress = address.[0];
+        let socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
+        let localEndPoint = new IPEndPoint(ipAddress, port);
+        socket.Bind(localEndPoint)
+        socket.Listen(100)
+        let rec loop() =
+            async { try
+                        let! conn = AsyncSockets.Accept socket
+                        let address = getRemoteAddress conn
+                        logger.Info(sprintf "got connection from %O" address)
+                        startReadLoop conn |> Async.Start
+                        return! loop()
+                    with ex -> 
+                        logger.Error(sprintf "readloop failed %O" ex) }
+        loop()
+
+    let openConnections() =
+        findInitalPeers()
+        |> Seq.map createAndStoreConnection
+        |> Async.Parallel
+        |> Async.Ignore
+        |> Async.Start
+
+    member x.Connect() =
+        startAcceptLoop() |> Async.Start
+        openConnections()
