@@ -4,7 +4,7 @@ open NLog.Layouts
 open NLog.Targets
 open NLog.Config
 
-let configureLogs useConsole useFile logLevel =
+let configureLogs useConsole useFile mainLogLevel debugLoggers =
 
     let config = new LoggingConfiguration()
 
@@ -15,8 +15,12 @@ let configureLogs useConsole useFile logLevel =
         config.AddTarget("console", consoleTarget)
         consoleTarget.Layout <- layout
 
-        let consoleRule = new LoggingRule("*", logLevel, consoleTarget)
+        let consoleRule = new LoggingRule("*", mainLogLevel, consoleTarget)
         config.LoggingRules.Add(consoleRule)
+        for logger in debugLoggers do
+            let consoleRule = new LoggingRule(logger, LogLevel.Debug, consoleTarget)
+            config.LoggingRules.Add(consoleRule)
+
 
     if useFile then
         let fileTarget = new FileTarget()
@@ -25,8 +29,11 @@ let configureLogs useConsole useFile logLevel =
         fileTarget.FileName <- new SimpleLayout("${basedir}/log.txt")
         fileTarget.Layout <- layout
 
-        let fileRule = new LoggingRule("*", logLevel, fileTarget)
+        let fileRule = new LoggingRule("*", mainLogLevel, fileTarget)
         config.LoggingRules.Add(fileRule)
+        for logger in debugLoggers do
+            let fileRule = new LoggingRule(logger, LogLevel.Debug, fileTarget)
+            config.LoggingRules.Add(fileRule)
 
 
     LogManager.Configuration <- config

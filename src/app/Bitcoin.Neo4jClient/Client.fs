@@ -51,87 +51,101 @@ module LoadBlockChainModel =
         | Limit of int 
         | All
 
+    let time name func =
+        let sw = Stopwatch.StartNew() 
+        let res = func()
+        logger.Debug(sprintf "%s;%i" name sw.ElapsedMilliseconds)
+        res
+
     // TODO is it worth moving any function that touches client into a seperate file?
     let doLoad url source messageScope =
         let client = new GraphClient(new Uri(url))
         client.Connect()
 
         let saveInputOutputRecord label transactionHash record =
-            client.Cypher
-                .Create(sprintf "(o:%s {param})" label)
-                .WithParam("param", record)
-                .With("o")
-                .Match("(t:Transaction)")
-                .Where(fun t -> t.TransactionHash = transactionHash)
-                .CreateUnique(sprintf "t-[:%s]->o" (label.ToLowerInvariant()))
-                .ExecuteWithoutResults()
+            time "saveInputOutputRecord" (fun () ->
+                client.Cypher
+                    .Create(sprintf "(o:%s {param})" label)
+                    .WithParam("param", record)
+                    .With("o")
+                    .Match("(t:Transaction)")
+                    .Where(fun t -> t.TransactionHash = transactionHash)
+                    // TODO fix direction here??
+                    .CreateUnique(sprintf "t-[:%s]->o" (label.ToLowerInvariant()))
+                    .ExecuteWithoutResults())
 
         let payAddress direction transactionHash address value transTime =
             let sign, source, dest = 
                 match direction with 
                 | To -> "+", "t", "a"
                 | From -> "-", "a", "t"
-            client.Cypher
-                .Merge("(a:Address { Address: {param}})")
-                .WithParam("param", address)
-                .OnCreate()
-                .Set("a.Balance = {balance}")
-                .OnMatch()
-                .Set(sprintf "a.Balance = a.Balance %s {balance}" sign)
-                .With("a")
-                .Match("(t:Transaction)")
-                .Where(fun t -> t.TransactionHash = transactionHash)
-                .Create(sprintf "%s-[:pays {Amount: {balance}, Time: {time}}]->%s" source dest)
-                .WithParam("balance", value)
-                .WithParam("time", transTime)
-                .ExecuteWithoutResults()
+            time "payAddress" (fun () ->
+                client.Cypher
+                    .Merge("(a:Address { Address: {param}})")
+                    .WithParam("param", address)
+                    .OnCreate()
+                    .Set("a.Balance = {balance}")
+                    .OnMatch()
+                    .Set(sprintf "a.Balance = a.Balance %s {balance}" sign)
+                    .With("a")
+                    .Match("(t:Transaction)")
+                    .Where(fun t -> t.TransactionHash = transactionHash)
+                    .Create(sprintf "%s-[:pays {Amount: {balance}, Time: {time}}]->%s" source dest)
+                    .WithParam("balance", value)
+                    .WithParam("time", transTime)
+                    .ExecuteWithoutResults())
 
         let lookupTransaction transHash i =
-            client.Cypher
-                .Match("(t:Transaction)-[:output]->(o:Output)")
-                .Where(fun t -> t.TransactionHash = transHash)
-                .AndWhere(fun o -> o.Index = i)
-                .Return<NeoOutput>("o")
-                .Results
-                .SingleOrDefault()
+            time "lookupTransaction" (fun () ->
+                client.Cypher
+                    .Match("(t:Transaction)-[:output]->(o:Output)")
+                    .Where(fun t -> t.TransactionHash = transHash)
+                    .AndWhere(fun o -> o.Index = i)
+                    .Return<NeoOutput>("o")
+                    .Results
+                    .SingleOrDefault())
 
 
         let saveRecord label record =
-            client.Cypher
-                .Create(sprintf "(b:%s {param})" label)
-                .WithParam("param", record)
-                .ExecuteWithoutResults()
+            time "saveRecord" (fun () ->
+                client.Cypher
+                    .Create(sprintf "(b:%s {param})" label)
+                    .WithParam("param", record)
+                    .ExecuteWithoutResults())
 
         let tansactionRelations trans blockHash =
-            client.Cypher
-                .Match("(t:Transaction)", "(b:Block)")
-                .Where(fun t -> t.TransactionHash = trans.TransactionHash)
-                .AndWhere(fun b -> b.Hash = blockHash)
-                .CreateUnique("t-[:belongsTo]->b")
-                .CreateUnique("t<-[:owns]-b")
-                .ExecuteWithoutResults()
+            time "tansactionRelations" (fun () ->
+                client.Cypher
+                    .Match("(t:Transaction)", "(b:Block)")
+                    .Where(fun t -> t.TransactionHash = trans.TransactionHash)
+                    .AndWhere(fun b -> b.Hash = blockHash)
+                    .CreateUnique("t-[:belongsTo]->b")
+                    .CreateUnique("t<-[:owns]-b")
+                    .ExecuteWithoutResults())
 
         let updateTransaction (trans: NeoTransaction) =
-            client.Cypher
-                .Match("(t:Transaction)")
-                .Where(fun t -> t.TransactionHash = trans.TransactionHash)
-                .Set("t.TotalInputs = {inputparam}")
-                .WithParam("inputparam", trans.TotalInputs)
-                .Set("t.TotalOutputs = {outputparam}")
-                .WithParam("outputparam", trans.TotalOutputs)
-                .Set("t.IsRewardBlock = {rewardparam}")
-                .WithParam("rewardparam", trans.IsRewardBlock)
-                .ExecuteWithoutResults()
+            time "updateTransaction" (fun () ->
+                client.Cypher
+                    .Match("(t:Transaction)")
+                    .Where(fun t -> t.TransactionHash = trans.TransactionHash)
+                    .Set("t.TotalInputs = {inputparam}")
+                    .WithParam("inputparam", trans.TotalInputs)
+                    .Set("t.TotalOutputs = {outputparam}")
+                    .WithParam("outputparam", trans.TotalOutputs)
+                    .Set("t.IsRewardBlock = {rewardparam}")
+                    .WithParam("rewardparam", trans.IsRewardBlock)
+                    .ExecuteWithoutResults())
 
         let getLastBlock() =
-            client.Cypher
-                .Match("(b:Block)")
-                .With("b")
-                .OrderByDescending("b.Height")
-                .Return<NeoBlock>("b")
-                .Limit(new Nullable<int>(1))
-                .Results
-                .SingleOrDefault()
+            time "getLastBlock" (fun () ->
+                client.Cypher
+                    .Match("(b:Block)")
+                    .With("b")
+                    .OrderByDescending("b.Height")
+                    .Return<NeoBlock>("b")
+                    .Limit(new Nullable<int>(1))
+                    .Results
+                    .SingleOrDefault())
 
         let neoOutputOfOutput transactionHash transTime i (output: Output): NeoOutput =
             let extractAddressFromScript canonicalScript =
@@ -288,7 +302,7 @@ module LoadBlockChainModel =
             else
                 All
 
-        LoggingConfig.configureLogs true false NLog.LogLevel.Info
+        LoggingConfig.configureLogs true true LogLevel.Info ["LoadBlockChainModel"]
 
         doLoad dbUrl target messageScope
 
