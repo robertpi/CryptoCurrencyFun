@@ -15,6 +15,8 @@ type Version106 =
            yield! Conversion.stringToVariableLengthString x.UserAgent
            yield! BitConverter.GetBytes(x.StartHeight)
            yield! BitConverter.GetBytes(x.Relay) |]
+    interface IBinarySerializable<Version106> with
+        member x.Serialize() = x.Serialize()
 
     static member CreateVersion106 fromAddress port  =
         { AddressFrom = NetworkAddress.GetNetworkAddress fromAddress port
@@ -52,6 +54,8 @@ type Version =
            yield! BitConverter.GetBytes(x.Timestamp)
            yield! x.AddressReceive.Serialize()
            yield! extras |]
+    interface IBinarySerializable<Version> with
+        member x.Serialize() = x.Serialize()
 
     static member Parse buffer =
         let version, offSet = Conversion.bytesToInt32 0 buffer

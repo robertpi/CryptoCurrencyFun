@@ -32,6 +32,8 @@ type RawMessageHeader =
            yield! paddedCommand
            yield! BitConverter.GetBytes(x.Length)
            yield! BitConverter.GetBytes(x.Checksum) |]
+    interface IBinarySerializable<RawMessageHeader> with
+        member x.Serialize() = x.Serialize()
     static member Create magic command length checkSum =
         { Magic = magic
           Command = command
@@ -54,6 +56,8 @@ type NetworkAddress =
            yield! BitConverter.GetBytes(x.Service)
            yield! x.Address
            yield! BitConverter.GetBytes(x.Port) |]
+    interface IBinarySerializable<NetworkAddress> with
+        member x.Serialize() = x.Serialize()
     static member GetNetworkAddress (address: IPAddress) port =
         let addressBytes = address.GetAddressBytes()
         let addressPadding = 16 - addressBytes.Length
