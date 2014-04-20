@@ -23,7 +23,6 @@ type PeerToPeerConnectionManager(port, seedDns) =
     let sendMessage socket buffer =
         AsyncSockets.Send socket (new ArraySegment<byte>(buffer))
         |> Async.Start
-        logger.Info(sprintf "Sending %O message length %i" socket.RemoteEndPoint buffer.Length)
 
     let broadcast sockets buffer =
         let buffer' = new ArraySegment<byte>(buffer)
@@ -107,7 +106,6 @@ type PeerToPeerConnectionManager(port, seedDns) =
                         let buffer = new ArraySegment<byte>(Array.zeroCreate 1024)
                         let! read = AsyncSockets.Receive socket buffer
                         if read > 0 then
-                            logger.Debug(sprintf "recieved %i" read)
                             let reallyReadBuffer = buffer.Array.[0 .. read - 1]
                             segments.Add reallyReadBuffer
                         let header, result = processSegements header segments
@@ -127,15 +125,8 @@ type PeerToPeerConnectionManager(port, seedDns) =
                     let version = 
                         BitcoinFs.Messages.Version.CreateMyVersion 
                             addressRemote (portRemote |> uint16) addressLocal (portLocal |> uint16)
-                    let versionBuffer = version.Serialize()
-                    let sha256 = SHA256.Create()
-                    let hash = sha256.ComputeHash(sha256.ComputeHash(versionBuffer))
-                    let checkSum, offset = Conversion.bytesToUInt32 0 hash
-                    let header = 
-                        BitcoinFs.CommonMessages.RawMessageHeader.Create 
-                            Const.MagicNumber "version" (uint32 versionBuffer.Length) checkSum
-                    let finishedBuffer = [| yield! header.Serialize(); yield! versionBuffer |]
-                    sendMessageTo address finishedBuffer
+                    let buffer = MessageProcessing.createBufferWithHeader version "version"
+                    sendMessageTo address buffer
                     startReadLoop conn |> Async.Start
                     logger.Info(sprintf "connected to %O!" address)
                 with ex -> 
