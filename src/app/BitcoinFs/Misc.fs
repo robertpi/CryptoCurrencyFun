@@ -144,7 +144,6 @@ module Time =
 
 module Const =
     let MagicNumber = 0xD9B4BEF9u
-    let Rnd = new Random()
 
 [<Interface>]
 type IVector =

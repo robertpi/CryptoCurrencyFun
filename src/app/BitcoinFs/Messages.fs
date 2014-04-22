@@ -3,6 +3,54 @@ open BitcoinFs
 open System
 open BitcoinFs.CommonMessages
 
+module MessageNames =
+    [<Literal>]
+    let Version = "version"
+    [<Literal>]
+    let Verack = "verack"
+    [<Literal>]
+    let Addr = "addr"
+    [<Literal>]
+    let Inv = "inv"
+    [<Literal>]
+    let GetData = "getdata"
+    [<Literal>]
+    let NotFound = "notfound"
+    [<Literal>]
+    let GetBlocks = "getblocks"
+    [<Literal>]
+    let GetHeaders = "getheaders"
+    [<Literal>]
+    let Tx = "tx"
+    [<Literal>]
+    let Block = "block"
+    [<Literal>]
+    let Header = "header"
+    [<Literal>]
+    let GetAddr = "getaddr"
+    [<Literal>]
+    let MemPool = "mempool"
+    [<Literal>]
+    let CheckOrder = "checkorder"
+    [<Literal>]
+    let SumbitOrder = "submitorder"
+    [<Literal>]
+    let Reply = "reply"
+    [<Literal>]
+    let Ping = "ping"
+    [<Literal>]
+    let Pong = "pong"
+    [<Literal>]
+    let FilterLoad = "filterload"
+    [<Literal>]
+    let FilterAdd = "filteradd"
+    [<Literal>]
+    let FilterClear = "filterclear"
+    [<Literal>]
+    let MerkleBlock = "merkleblock"
+    [<Literal>]
+    let Alert = "alert"
+
 type Version106 =
     { AddressFrom: NetworkAddress
       Nonce: uint64
@@ -20,7 +68,7 @@ type Version106 =
 
     static member CreateVersion106 fromAddress port  =
         { AddressFrom = NetworkAddress.GetNetworkAddress fromAddress port
-          Nonce = Const.Rnd.NextDouble() * (float UInt64.MaxValue) |> uint64
+          Nonce = Crypto.CreateNonce64()
           UserAgent = "CryptoCurrFun"
           StartHeight = 0
           Relay = false }
@@ -101,7 +149,16 @@ type Headers = // headers
       Headers: Header[] }
 
 type PingPong = // ping pong
-    { Nonce: uint32 }
+    { Nonce: uint64 }
+    member x.Serialize() =
+        BitConverter.GetBytes(x.Nonce)
+    interface IBinarySerializable<Version> with
+        member x.Serialize() = x.Serialize()
+    static member Create()  =
+        { Nonce = Crypto.CreateNonce64() }
+    static member Parse buffer =
+        let nonce, offSet = Conversion.bytesToUInt64 0 buffer
+        { Nonce = nonce }
 
 type Alert =
     { Version: int32
