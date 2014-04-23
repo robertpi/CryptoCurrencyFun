@@ -1,4 +1,5 @@
 ﻿namespace BitcoinFs
+open System.Net
 open BitcoinFs.Messages
 
 type CheckMessageResult =
@@ -10,14 +11,16 @@ module MessageProcessing =
     open System.Security.Cryptography
     open BitcoinFs.CommonMessages
 
-    let createBufferWithHeader (message: IBinarySerializable<'a>) messageName =
-        let messageBuffer = message.Serialize()
+    let createBufferWithHeaderFromBuffer messageBuffer messageName =
         let checkSum = Crypto.ComputerCheckSum messageBuffer
         let header = 
             BitcoinFs.CommonMessages.RawMessageHeader.Create 
                 Const.MagicNumber messageName (uint32 messageBuffer.Length) checkSum
         [| yield! header.Serialize(); yield! messageBuffer |]
 
+    let createBufferWithHeader (message: IBinarySerializable<'a>) =
+        let messageBuffer = message.Serialize()
+        createBufferWithHeaderFromBuffer messageBuffer
 
     let checkMessage header totalRead segments =
         if totalRead >= (int header.Length + RawMessageHeader.HeaderLength) then
@@ -33,13 +36,27 @@ module MessageProcessing =
             Incomplete
 
     let processMessage header buffer replyChannel =
-        printfn "message received: %A" header
-        match header.Command.Trim() with
-        | "version" -> 
+        match header.Command with
+        | MessageNames.Version -> 
             let version = Version.Parse buffer
-            printfn "version %A" version
-            let verack = RawMessageHeader.Create Const.MagicNumber "verack" 0u 0x3B648D5Au
-            replyChannel(verack.Serialize())
-        | "verack" ->
+            let ip = IPAddress.Any
+            let ipTo = 
+                new IPAddress(version.AddressReceive.Address)
+                |> fun x -> x.ToString()
+            let ipFrom = 
+                match version.Extras106 with
+                | Some x -> 
+                    let ip = new IPAddress(x.AddressFrom.Address)
+                    ip.ToString()
+                | None -> ""
+            printfn "version %s -> %s %i" ipFrom ipTo version.Version
+            let verack = createBufferWithHeaderFromBuffer [||] MessageNames.Verack
+            replyChannel verack 
+        | MessageNames.Verack ->
             printfn "verack"
-        | _ -> printfn "unknow message"
+        | MessageNames.Ping ->
+            let ping = PingPong.Parse buffer
+            let buffer = createBufferWithHeader ping MessageNames.Pong
+            replyChannel buffer
+        | _ -> 
+            printfn "unknow message: %A" header

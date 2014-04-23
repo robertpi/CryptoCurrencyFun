@@ -13,7 +13,11 @@ type RawMessageHeader =
     static member Parse buffer =
         let magic, offSet = Conversion.bytesToUInt32 0 buffer
         let commandBytes, offSet = Conversion.readByteBlock offSet 12 buffer
-        let command = Encoding.ASCII.GetString(commandBytes)
+        let trimmedCommandBytes = 
+            commandBytes 
+            |> Seq.takeWhile (fun x -> x <> 0uy) 
+            |> Seq.toArray
+        let command = Encoding.ASCII.GetString(trimmedCommandBytes)
         let length, offSet = Conversion.bytesToUInt32 offSet buffer
         let checksum, offSet = Conversion.bytesToUInt32 offSet buffer
         { Magic = magic
