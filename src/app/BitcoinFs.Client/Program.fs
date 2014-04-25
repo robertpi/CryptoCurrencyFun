@@ -5,8 +5,7 @@ open NLog.Layouts
 open NLog.Targets
 open NLog.Config
 
-let port = 8333
-let seedHost = "seed.bitcoin.sipa.be"
+let reduceSeedHostList = [ "seed.bitcoin.sipa.be" ]
 
 [<EntryPoint>]
 let main argv =
@@ -22,7 +21,7 @@ let main argv =
     config.LoggingRules.Add(consoleRule)
 
     LogManager.Configuration <- config
-    let connMan = new PeerToPeerConnectionManager(Ports.Bitcoin, SeedDns.Bitcoin, MagicNumbers.Bitcoin)
+    let connMan = new PeerToPeerConnectionManager(Ports.Bitcoin, reduceSeedHostList, MagicNumbers.Bitcoin)
     connMan.Connect()
 
     System.Console.ReadLine() |> ignore

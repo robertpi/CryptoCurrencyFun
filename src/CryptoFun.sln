@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30110.0
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "BitcoinFs", "app\BitcoinFs\BitcoinFs.fsproj", "{D2AAA59C-8762-4F67-9FC2-AD015A4295FB}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "BitcoinFs.Neo4j", "app\Bitcoin.Neo4jClient\BitcoinFs.Neo4j.fsproj", "{8B5FAB13-6C68-4967-8150-08E44A8756F5}"

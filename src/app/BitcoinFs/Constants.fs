@@ -6,7 +6,7 @@ module MagicNumbers =
     let Namecoin  = 0xFEB4BEF9u
 
 module Ports =
-    let Bitcoin = 8332
+    let Bitcoin = 8333
     let BitcoinTestnet = 18332
     let BitcoinTestnet3 = 38332
     let Namecoin  = 8332
