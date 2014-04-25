@@ -21,8 +21,12 @@ let main argv =
     config.LoggingRules.Add(consoleRule)
 
     LogManager.Configuration <- config
-    let connMan = new PeerToPeerConnectionManager(Ports.Bitcoin, reduceSeedHostList, MagicNumbers.Bitcoin)
+    let connMan = new PeerToPeerConnectionManager(Ports.Bitcoin, SeedDns.Bitcoin, MagicNumbers.Bitcoin)
     connMan.Connect()
+
+    System.Console.ReadLine() |> ignore
+
+    connMan.BroadcastPing()
 
     System.Console.ReadLine() |> ignore
 

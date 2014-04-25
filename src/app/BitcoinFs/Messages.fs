@@ -70,7 +70,7 @@ type Version106 =
           Nonce = Crypto.CreateNonce64()
           UserAgent = "CryptoCurrFun"
           StartHeight = 0
-          Relay = false }
+          Relay = true }
 
     static member Parse offSet buffer version =
         let networkAddress, offset = NetworkAddress.Parse offSet buffer version

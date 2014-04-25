@@ -46,13 +46,13 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
             let ipTo = 
                 new IPAddress(version.AddressReceive.Address)
                 |> fun x -> x.ToString()
-            let ipFrom = 
+            let ipFrom, userAgent, relay = 
                 match version.Extras106 with
                 | Some x -> 
                     let ip = new IPAddress(x.AddressFrom.Address)
-                    ip.ToString()
-                | None -> ""
-            printfn "version %s -> %s %i" ipFrom ipTo version.Version
+                    ip.ToString(), x.UserAgent, x.Relay
+                | None -> "", "", false
+            printfn "version %s -> %s %i %s %b" ipFrom ipTo version.Version userAgent relay
             let verack = x.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
             responseActions.ReplyChannel address verack 
         | MessageNames.Verack ->

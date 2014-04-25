@@ -19,22 +19,6 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
 
     let messageProcessor =  new MessageProcessor(magicNumber, this)
 
-    let findInitalPeers() =
-        let seeds =
-            seedDnses
-            |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
-        printfn "%A" seeds
-        seeds
-
-    let sendMessage socket buffer =
-        AsyncSockets.Send socket (new ArraySegment<byte>(buffer))
-        |> Async.Start
-
-    let broadcast sockets buffer =
-        let buffer' = new ArraySegment<byte>(buffer)
-        for socket in sockets do
-            sendMessage socket buffer
-
     let addressOfEndpoint (endPoint: EndPoint) =
         match endPoint with
         | :? IPEndPoint as ipep -> ipep.Address, ipep.Port
@@ -47,6 +31,21 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
 
     let getLocalAddress (socket: Socket) =
         addressOfEndpoint socket.LocalEndPoint
+
+    let findInitalPeers() =
+        seedDnses
+        |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
+
+    let sendMessage socket buffer =
+        AsyncSockets.Send socket (new ArraySegment<byte>(buffer))
+        |> Async.Start
+
+    let broadcast sockets buffer =
+        let buffer' = new ArraySegment<byte>(buffer)
+        for socket in sockets do
+            let ip = getRemoteAddress socket
+            logger.Debug(sprintf "sending message to %O" ip)
+            sendMessage socket buffer
 
     let activeSendConnections =
         MailboxProcessor.Start(fun box ->
@@ -172,5 +171,19 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
     member x.Connect() =
         startAcceptLoop() |> Async.Start
         openConnections()
+
+    member x.BroadcastMemPool() =
+        let buffer = messageProcessor.CreateBufferWithHeaderFromBuffer [||] MessageNames.MemPool
+        activeSendConnections.Post(Broadcast buffer)
+
+    member x.BroadcastGetAddr() =
+        let buffer = messageProcessor.CreateBufferWithHeaderFromBuffer [||] MessageNames.GetAddr
+        activeSendConnections.Post(Broadcast buffer)
+
+    member x.BroadcastPing() =
+        let ping = PingPong.Create()
+        let buffer = messageProcessor.CreateBufferWithHeader ping MessageNames.GetAddr
+        activeSendConnections.Post(Broadcast buffer)
+
     interface IMessageResponseAction with
         member x.ReplyChannel address buffer = sendMessageTo address buffer
