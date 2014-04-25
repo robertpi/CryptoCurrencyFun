@@ -142,9 +142,6 @@ module Time =
     let getUnixTimeNow () =
         getUnixTime DateTime.Now
 
-module Const =
-    let MagicNumber = 0xD9B4BEF9u
-
 [<Interface>]
 type IVector =
     abstract member Bytes: array<byte> 

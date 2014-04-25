@@ -1,28 +1,31 @@
 ﻿namespace BitcoinFs
 open System.Net
+open System.Security.Cryptography
 open BitcoinFs.Messages
+open BitcoinFs.Constants
 
 type CheckMessageResult =
     | Incomplete
     | Corrupt of byte[]
     | Complete of byte[] * byte[]
 
-module MessageProcessing =
-    open System.Security.Cryptography
-    open BitcoinFs.CommonMessages
+type internal IMessageResponseAction =
+    abstract member ReplyChannel: source: IPAddress -> buffer: byte[] -> unit
 
-    let createBufferWithHeaderFromBuffer messageBuffer messageName =
+type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAction) =
+
+    member __.CreateBufferWithHeaderFromBuffer messageBuffer messageName =
         let checkSum = Crypto.ComputerCheckSum messageBuffer
         let header = 
-            BitcoinFs.CommonMessages.RawMessageHeader.Create 
-                Const.MagicNumber messageName (uint32 messageBuffer.Length) checkSum
+            RawMessageHeader.Create 
+                magicNumber messageName (uint32 messageBuffer.Length) checkSum
         [| yield! header.Serialize(); yield! messageBuffer |]
 
-    let createBufferWithHeader (message: IBinarySerializable<'a>) =
+    member x.CreateBufferWithHeader (message: IBinarySerializable<'a>) =
         let messageBuffer = message.Serialize()
-        createBufferWithHeaderFromBuffer messageBuffer
+        x.CreateBufferWithHeaderFromBuffer messageBuffer
 
-    let checkMessage header totalRead segments =
+    member __.CheckMessage (header: RawMessageHeader) totalRead segments =
         if totalRead >= (int header.Length + RawMessageHeader.HeaderLength) then
             let completeBuffer = segments |> Seq.concat |> Seq.toArray
             let message, remaider = 
@@ -35,7 +38,7 @@ module MessageProcessing =
         else
             Incomplete
 
-    let processMessage header buffer replyChannel =
+    member x.ProcessMessage header buffer address =
         match header.Command with
         | MessageNames.Version -> 
             let version = Version.Parse buffer
@@ -50,13 +53,13 @@ module MessageProcessing =
                     ip.ToString()
                 | None -> ""
             printfn "version %s -> %s %i" ipFrom ipTo version.Version
-            let verack = createBufferWithHeaderFromBuffer [||] MessageNames.Verack
-            replyChannel verack 
+            let verack = x.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
+            responseActions.ReplyChannel address verack 
         | MessageNames.Verack ->
             printfn "verack"
         | MessageNames.Ping ->
             let ping = PingPong.Parse buffer
-            let buffer = createBufferWithHeader ping MessageNames.Pong
-            replyChannel buffer
+            let buffer = x.CreateBufferWithHeader ping MessageNames.Pong
+            responseActions.ReplyChannel address buffer
         | _ -> 
             printfn "unknow message: %A" header

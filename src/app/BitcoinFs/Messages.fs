@@ -1,7 +1,6 @@
 ﻿namespace BitcoinFs.Messages
 open BitcoinFs
 open System
-open BitcoinFs.CommonMessages
 
 module MessageNames =
     [<Literal>]

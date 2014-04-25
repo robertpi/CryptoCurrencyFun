@@ -36,7 +36,7 @@
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
   </PropertyGroup>
   <Choose>
-    <When Condition="'$(VisualStudioVersion)' == '11.0'">
+    <When Condition="'$(VisualStudioVersion)' == '11.0' Or $(OS) != 'Windows_NT'">
       <PropertyGroup>
         <FSharpTargetsPath>$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets</FSharpTargetsPath>
       </PropertyGroup>
@@ -50,6 +50,7 @@
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
     <Compile Include="Misc.fs" />
+    <Compile Include="Constants.fs" />
     <Compile Include="Crypto.fs" />
     <Compile Include="Address.fs" />
     <Compile Include="ScriptOps.fs" />

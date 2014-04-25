@@ -1,4 +1,5 @@
 ﻿open BitcoinFs
+open BitcoinFs.Constants
 open NLog
 open NLog.Layouts
 open NLog.Targets
@@ -11,7 +12,7 @@ let seedHost = "seed.bitcoin.sipa.be"
 let main argv =
     let config = new LoggingConfiguration()
 
-    let layout = new SimpleLayout(@"${date:yyyy-MM-ddTHH\:mm\:ss} ${logger} ${message}")
+    let layout = new SimpleLayout(@"${date:yyyy--gMM-ddTHH\:mm\:ss} ${logger} ${message}")
 
     let consoleTarget = new ColoredConsoleTarget()
     config.AddTarget("console", consoleTarget)
@@ -21,7 +22,7 @@ let main argv =
     config.LoggingRules.Add(consoleRule)
 
     LogManager.Configuration <- config
-    let connMan = new PeerToPeerConnectionManager(port, seedHost)
+    let connMan = new PeerToPeerConnectionManager(Ports.Bitcoin, SeedDns.Bitcoin, MagicNumbers.Bitcoin)
     connMan.Connect()
 
     System.Console.ReadLine() |> ignore

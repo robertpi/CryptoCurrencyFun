@@ -4,8 +4,8 @@ open System.Net
 open System.Net.Sockets
 open System.Security.Cryptography
 open NLog
-open BitcoinFs.CommonMessages
 open BitcoinFs.Messages
+open BitcoinFs.Constants
 
 type internal SendConnections =
     | Add of Socket
@@ -14,11 +14,17 @@ type internal SendConnections =
     | SendMessage of IPAddress * byte[]
 
 
-type PeerToPeerConnectionManager(port, seedDns) =
+type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
     let logger = LogManager.GetCurrentClassLogger()
 
+    let messageProcessor =  new MessageProcessor(magicNumber, this)
+
     let findInitalPeers() =
-        Dns.GetHostAddresses(seedDns)
+        let seeds =
+            seedDnses
+            |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
+        printfn "%A" seeds
+        seeds
 
     let sendMessage socket buffer =
         AsyncSockets.Send socket (new ArraySegment<byte>(buffer))
@@ -32,7 +38,9 @@ type PeerToPeerConnectionManager(port, seedDns) =
     let addressOfEndpoint (endPoint: EndPoint) =
         match endPoint with
         | :? IPEndPoint as ipep -> ipep.Address, ipep.Port
-        | _ -> null, 0
+        | _ -> 
+            logger.Debug(sprintf "not an ip endpoint %O" endPoint)
+            null, 0
 
     let getRemoteAddress (socket: Socket) =
         addressOfEndpoint socket.RemoteEndPoint
@@ -86,7 +94,7 @@ type PeerToPeerConnectionManager(port, seedDns) =
                     header
             let result = 
                 match header with
-                | Some header -> MessageProcessing.checkMessage header totalRead segments 
+                | Some header -> messageProcessor.CheckMessage header totalRead segments 
                 | None -> Incomplete
             match result with
             | Incomplete -> header, segments
@@ -94,11 +102,11 @@ type PeerToPeerConnectionManager(port, seedDns) =
             | Corrupt(_) -> None, new ResizeArray<byte[]>()
             | Complete(message, remainder) when remainder.Length > 0 -> 
                 let address = getRemoteAddress socket |> fst
-                MessageProcessing.processMessage header.Value message (sendMessageTo address)
+                messageProcessor.ProcessMessage header.Value message address
                 restart remainder
             | Complete(message, _) -> 
                 let address = getRemoteAddress socket |> fst
-                MessageProcessing.processMessage header.Value message (sendMessageTo address)
+                messageProcessor.ProcessMessage header.Value message address
                 None, new ResizeArray<byte[]>()
 
         let rec loop header (segments: ResizeArray<byte[]>) =
@@ -119,16 +127,19 @@ type PeerToPeerConnectionManager(port, seedDns) =
         async { try
                     logger.Info(sprintf "trying to connect to %O" address)
                     let! conn = AsyncSockets.OpenSendSocket address port
-                    activeSendConnections.Post (Add conn)
-                    let addressRemote, portRemote = getRemoteAddress conn
-                    let addressLocal, portLocal = getLocalAddress conn
-                    let version = 
-                        BitcoinFs.Messages.Version.CreateMyVersion 
-                            addressRemote (portRemote |> uint16) addressLocal (portLocal |> uint16)
-                    let buffer = MessageProcessing.createBufferWithHeader version "version"
-                    sendMessageTo address buffer
-                    startReadLoop conn |> Async.Start
-                    logger.Info(sprintf "connected to %O!" address)
+                    if conn.Connected then
+                        activeSendConnections.Post (Add conn)
+                        let addressRemote, portRemote = getRemoteAddress conn
+                        let addressLocal, portLocal = getLocalAddress conn
+                        let version = 
+                            BitcoinFs.Messages.Version.CreateMyVersion 
+                                addressRemote (portRemote |> uint16) addressLocal (portLocal |> uint16)
+                        let buffer = messageProcessor.CreateBufferWithHeader version MessageNames.Version
+                        sendMessageTo address buffer
+                        startReadLoop conn |> Async.Start
+                        logger.Info(sprintf "connected to %O!" address)
+                    else
+                        logger.Error(sprintf "didn't connect to %O" address)
                 with ex -> 
                     logger.Error(sprintf "connection to address %O failed %O" address ex) }
 
@@ -161,3 +172,5 @@ type PeerToPeerConnectionManager(port, seedDns) =
     member x.Connect() =
         startAcceptLoop() |> Async.Start
         openConnections()
+    interface IMessageResponseAction with
+        member x.ReplyChannel address buffer = sendMessageTo address buffer

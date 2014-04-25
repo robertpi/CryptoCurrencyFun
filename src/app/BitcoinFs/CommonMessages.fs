@@ -1,5 +1,6 @@
-﻿namespace BitcoinFs.CommonMessages
+﻿namespace BitcoinFs.Messages
 open System
+open System.Diagnostics
 open System.Text
 open System.Net
 open BitcoinFs
@@ -63,7 +64,9 @@ type NetworkAddress =
     interface IBinarySerializable<NetworkAddress> with
         member x.Serialize() = x.Serialize()
     static member GetNetworkAddress (address: IPAddress) port =
+        if address = null then failwith "address should not be null"
         let addressBytes = address.GetAddressBytes()
+        if addressBytes = null then failwith "addressBytes should not be null"
         let addressPadding = 16 - addressBytes.Length
         let addressBytes =
             if addressPadding > 0 then
