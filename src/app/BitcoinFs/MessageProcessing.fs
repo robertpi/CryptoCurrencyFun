@@ -12,8 +12,8 @@ type CheckMessageResult =
 
 type internal IMessageResponseAction =
     abstract member ReplyChannel: source: IPAddress -> buffer: byte[] -> unit
-    abstract member InvReceived: inv:InventoryDetails -> unit
-    abstract member AddrReceived: addr:Address -> unit
+    abstract member HandleInvReceived: inv:InventoryDetails -> unit
+    abstract member HandleAddrReceived: addr:Address -> unit
 
 type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAction) =
 
@@ -68,10 +68,10 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
             logger.Info("verack")
         | Addr -> 
             let addr, _ = Address.Parse buffer 0
-            responseActions.AddrReceived addr
+            responseActions.HandleAddrReceived addr
         | Inv ->
             let invDetails, _ = InventoryDetails.Parse buffer 0
-            responseActions.InvReceived invDetails
+            responseActions.HandleInvReceived invDetails
         | GetData -> 
             logger.Info(sprintf "%A" header)
         | NotFound -> 

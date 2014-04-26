@@ -25,6 +25,9 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
 
     let messageProcessor =  new MessageProcessor(magicNumber, this)
 
+    let invReceivedEvent = new Event<_>()
+    let addrReceivedEvent = new Event<_>()
+
     let addressOfEndpoint (endPoint: EndPoint) =
         match endPoint with
         | :? IPEndPoint as ipep -> ipep.Address, ipep.Port
@@ -192,9 +195,13 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
         let buffer = messageProcessor.CreateBufferWithHeader ping MessageNames.GetAddr
         activeSendConnections.Post(Broadcast buffer)
 
+    [<CLIEvent>]
+    member this.InvReceived = invReceivedEvent.Publish
+    member this.AddrReceived = addrReceivedEvent.Publish
+
     interface IMessageResponseAction with
         member x.ReplyChannel address buffer = sendMessageTo address buffer
-        member x.InvReceived  (inv:InventoryDetails) = 
-            logger.Debug(sprintf "inv with count %i" inv.Count)
-        member x.AddrReceived (addr: Address) = 
-            logger.Debug(sprintf "addr with count %i" addr.Count)
+        member x.HandleInvReceived  (inv:InventoryDetails) = 
+            invReceivedEvent.Trigger(x, inv)
+        member x.HandleAddrReceived (addr: Address) = 
+            addrReceivedEvent.Trigger(x, addr)
