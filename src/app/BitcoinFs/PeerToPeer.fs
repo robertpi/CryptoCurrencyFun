@@ -136,7 +136,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
                         let addressRemote, portRemote = getRemoteAddress conn
                         let addressLocal, portLocal = getLocalAddress conn
                         let version = 
-                            BitcoinFs.Messages.Version.CreateMyVersion 
+                            Version.CreateMyVersion 
                                 addressRemote (portRemote |> uint16) addressLocal (portLocal |> uint16)
                         let buffer = messageProcessor.CreateBufferWithHeader version MessageNames.Version
                         sendMessageTo address buffer
@@ -194,3 +194,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
 
     interface IMessageResponseAction with
         member x.ReplyChannel address buffer = sendMessageTo address buffer
+        member x.InvReceived  (inv:InventoryDetails) = 
+            logger.Debug(sprintf "inv with count %i" inv.Count)
+        member x.AddrReceived (addr: Address) = 
+            logger.Debug(sprintf "addr with count %i" addr.Count)

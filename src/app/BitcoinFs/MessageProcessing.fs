@@ -12,6 +12,8 @@ type CheckMessageResult =
 
 type internal IMessageResponseAction =
     abstract member ReplyChannel: source: IPAddress -> buffer: byte[] -> unit
+    abstract member InvReceived: inv:InventoryDetails -> unit
+    abstract member AddrReceived: addr:Address -> unit
 
 type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAction) =
 
@@ -45,8 +47,8 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
             Incomplete
 
     member x.ProcessMessage header buffer address =
-        match header.Command with
-        | MessageNames.Version -> 
+        match header.Command |> MessageName.Parse with
+        | Version -> 
             let version = Version.Parse buffer
             let ip = IPAddress.Any
             let ipTo = 
@@ -62,12 +64,54 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
                             ipFrom ipTo version.Version userAgent version.Service relay startHeight nonce) 
             let verack = x.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
             responseActions.ReplyChannel address verack 
-        | MessageNames.Verack ->
+        | Verack ->
             logger.Info("verack")
-        | MessageNames.Ping ->
+        | Addr -> 
+            let addr, _ = Address.Parse buffer 0
+            responseActions.AddrReceived addr
+        | Inv ->
+            let invDetails, _ = InventoryDetails.Parse buffer 0
+            responseActions.InvReceived invDetails
+        | GetData -> 
+            logger.Info(sprintf "%A" header)
+        | NotFound -> 
+            logger.Info(sprintf "%A" header)
+        | GetBlocks ->
+            logger.Info(sprintf "%A" header)
+        | GetHeaders -> 
+            logger.Info(sprintf "%A" header)
+        | Tx ->
+            logger.Info(sprintf "%A" header)
+        | Block ->
+            logger.Info(sprintf "%A" header)
+        | Header ->
+            logger.Info(sprintf "%A" header)
+        | GetAddr ->
+            logger.Info(sprintf "%A" header)
+        | MemPool ->
+            logger.Info(sprintf "%A" header)
+        | CheckOrder ->
+            logger.Info(sprintf "%A" header)
+        | SumbitOrder ->
+            logger.Info(sprintf "%A" header)
+        | Reply ->
+            logger.Info(sprintf "%A" header)
+        | Ping ->
             logger.Info(sprintf "recieved ping")
             let ping = PingPong.Parse buffer
             let buffer = x.CreateBufferWithHeader ping MessageNames.Pong
             responseActions.ReplyChannel address buffer
-        | _ -> 
+        | Pong ->
+            logger.Info(sprintf "%A" header)
+        | FilterLoad ->
+            logger.Info(sprintf "%A" header)
+        | FilterAdd ->
+            logger.Info(sprintf "%A" header)
+        | FilterClear ->
+            logger.Info(sprintf "%A" header)
+        | MerkleBlock ->
+            logger.Info(sprintf "%A" header)
+        | Alert ->
+            logger.Info(sprintf "%A" header)
+        | Unknown message ->
             logger.Info(sprintf "unknow message: %A" header)

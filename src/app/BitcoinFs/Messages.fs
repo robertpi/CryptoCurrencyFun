@@ -50,6 +50,58 @@ module MessageNames =
     [<Literal>]
     let Alert = "alert"
 
+type MessageName =
+    | Version
+    | Verack
+    | Addr
+    | Inv
+    | GetData
+    | NotFound
+    | GetBlocks
+    | GetHeaders
+    | Tx
+    | Block
+    | Header
+    | GetAddr
+    | MemPool
+    | CheckOrder
+    | SumbitOrder
+    | Reply
+    | Ping
+    | Pong
+    | FilterLoad
+    | FilterAdd
+    | FilterClear
+    | MerkleBlock
+    | Alert
+    | Unknown of string
+    static member Parse messageName =
+        match messageName with
+        | MessageNames.Version -> Version
+        | MessageNames.Verack -> Verack
+        | MessageNames.Addr -> Addr
+        | MessageNames.Inv -> Inv
+        | MessageNames.GetData -> GetData
+        | MessageNames.NotFound -> NotFound
+        | MessageNames.GetBlocks -> GetBlocks
+        | MessageNames.GetHeaders -> GetHeaders
+        | MessageNames.Tx -> Tx
+        | MessageNames.Block -> Block
+        | MessageNames.Header -> Header
+        | MessageNames.GetAddr -> GetAddr
+        | MessageNames.MemPool -> MemPool
+        | MessageNames.CheckOrder -> CheckOrder
+        | MessageNames.SumbitOrder -> SumbitOrder
+        | MessageNames.Reply -> Reply
+        | MessageNames.Ping -> Ping
+        | MessageNames.Pong -> Pong
+        | MessageNames.FilterLoad -> FilterLoad
+        | MessageNames.FilterAdd -> FilterAdd
+        | MessageNames.FilterClear -> FilterClear
+        | MessageNames.MerkleBlock -> MerkleBlock
+        | MessageNames.Alert -> Alert
+        | _ -> Unknown messageName
+
 type Version106 =
     { AddressFrom: NetworkAddress
       Nonce: uint64
@@ -132,10 +184,43 @@ type Version =
 type Address = //addr 
     { Count: int64
       AddressList: NetworkAddress[] }
+    static member Parse buffer offSet =
+        let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        // TODO refactor receive items loop into a common function
+        let rec inputsLoop remaining offSet acc =
+            if remaining > 0 then
+                // need to find better way off getting version 
+                let netAddr, offSet = NetworkAddress.Parse offSet buffer 70002 
+
+                let remaining' = remaining - 1
+                let acc' = netAddr :: acc
+                inputsLoop remaining' offSet acc'
+            else
+                acc |> List.rev, offSet
+
+        let addresses, offSet = inputsLoop (int count)  offSet []
+        { Count = count
+          AddressList = addresses |> Seq.toArray }, offSet
 
 type InventoryDetails = // inv, getdata & notfound (at the moment don't see how getdata is useful)
     { Count: int64
       Invertory: InventoryVector[] }
+    static member Parse buffer offSet =
+        let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let rec inputsLoop remaining offSet acc =
+            if remaining > 0 then
+                let inv, offSet = InventoryVector.Parse buffer offSet
+
+                let remaining' = remaining - 1
+                let acc' = inv :: acc
+                inputsLoop remaining' offSet acc'
+            else
+                acc |> List.rev, offSet
+
+        let invs, offSet = inputsLoop (int count)  offSet []
+        { Count = count
+          Invertory = invs |> Seq.toArray }, offSet
+
 
 type GetSpec = // getblocks , getheaders
     { Version: uint32
