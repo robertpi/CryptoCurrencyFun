@@ -132,6 +132,19 @@ module Conversion =
         let stringBytes = buffer.[offSet .. offSet + length]
         Encoding.ASCII.GetString(stringBytes), offSet + length + 1
 
+    let parseBuffer buffer offSet count parserFunc =
+        let rec inputsLoop remaining offSet acc =
+            if remaining > 0 then
+                let netAddr, offSet = parserFunc offSet buffer 
+
+                let remaining' = remaining - 1
+                let acc' = netAddr :: acc
+                inputsLoop remaining' offSet acc'
+            else
+                acc |> List.rev, offSet
+        inputsLoop count offSet []
+
+
 module Time =
     let private epoch = new DateTime(1970, 1, 1, 0, 0, 0, 0)
 

@@ -102,7 +102,7 @@ type InventoryVectorType =
 type InventoryVector =
     { Type: InventoryVectorType
       Hash: byte[] }
-    static member Parse buffer offSet =
+    static member Parse offSet buffer  =
         let invertyType, offSet = Conversion.bytesToUInt32 offSet buffer
         let hash, offSet = Conversion.readByteBlock offSet 32 buffer
         { Type = enum (invertyType |> int)

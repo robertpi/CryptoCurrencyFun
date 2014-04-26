@@ -186,19 +186,9 @@ type Address = //addr
       AddressList: NetworkAddress[] }
     static member Parse buffer offSet =
         let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
-        // TODO refactor receive items loop into a common function
-        let rec inputsLoop remaining offSet acc =
-            if remaining > 0 then
-                // need to find better way off getting version 
-                let netAddr, offSet = NetworkAddress.Parse offSet buffer 70002 
-
-                let remaining' = remaining - 1
-                let acc' = netAddr :: acc
-                inputsLoop remaining' offSet acc'
-            else
-                acc |> List.rev, offSet
-
-        let addresses, offSet = inputsLoop (int count)  offSet []
+        let addresses, offSet =
+            Conversion.parseBuffer buffer offSet (int count) 
+              (fun offSet buffer -> NetworkAddress.Parse offSet buffer 70002)
         { Count = count
           AddressList = addresses |> Seq.toArray }, offSet
 
@@ -207,17 +197,8 @@ type InventoryDetails = // inv, getdata & notfound (at the moment don't see how 
       Invertory: InventoryVector[] }
     static member Parse buffer offSet =
         let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
-        let rec inputsLoop remaining offSet acc =
-            if remaining > 0 then
-                let inv, offSet = InventoryVector.Parse buffer offSet
-
-                let remaining' = remaining - 1
-                let acc' = inv :: acc
-                inputsLoop remaining' offSet acc'
-            else
-                acc |> List.rev, offSet
-
-        let invs, offSet = inputsLoop (int count)  offSet []
+        let invs, offSet =
+            Conversion.parseBuffer buffer offSet (int count) InventoryVector.Parse
         { Count = count
           Invertory = invs |> Seq.toArray }, offSet
 
