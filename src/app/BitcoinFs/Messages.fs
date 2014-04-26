@@ -70,7 +70,7 @@ type Version106 =
           Nonce = Crypto.CreateNonce64()
           UserAgent = "CryptoCurrFun"
           StartHeight = 0
-          Relay = true }
+          Relay = false }
 
     static member Parse offSet buffer version =
         let networkAddress, offset = NetworkAddress.Parse offSet buffer version
@@ -123,8 +123,8 @@ type Version =
     
     static member CreateMyVersion receiveAddress receivePort fromAddress fromPort =
         let extras = Version106.CreateVersion106 fromAddress fromPort
-        { Version = 60002
-          Service = 0uL
+        { Version = 70002
+          Service = 1uL
           Timestamp = Time.getUnixTimeNow()
           AddressReceive = NetworkAddress.GetNetworkAddress receiveAddress receivePort
           Extras106 = Some extras }

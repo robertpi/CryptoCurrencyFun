@@ -13,8 +13,14 @@ type internal SendConnections =
     | Broadcast of byte[]
     | SendMessage of IPAddress * byte[]
 
+module internal PeerToPeerHelpers =
+    let findInitalPeers seedDnses =
+        seedDnses
+        |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
 
-type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
+
+type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as this =
+
     let logger = LogManager.GetCurrentClassLogger()
 
     let messageProcessor =  new MessageProcessor(magicNumber, this)
@@ -32,9 +38,6 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
     let getLocalAddress (socket: Socket) =
         addressOfEndpoint socket.LocalEndPoint
 
-    let findInitalPeers() =
-        seedDnses
-        |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
 
     let sendMessage socket buffer =
         AsyncSockets.Send socket (new ArraySegment<byte>(buffer))
@@ -88,6 +91,7 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
                 if Option.isNone header && totalRead > RawMessageHeader.HeaderLength then
                     let totalMessageBuffer = Seq.concat segments |> Seq.toArray
                     let header = RawMessageHeader.Parse totalMessageBuffer
+                    //logger.Debug(sprintf "got header %A" header)
                     Some header
                 else
                     header
@@ -113,9 +117,10 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
                         let buffer = new ArraySegment<byte>(Array.zeroCreate 1024)
                         let! read = AsyncSockets.Receive socket buffer
                         if read > 0 then
+                            //logger.Debug(sprintf "read bytes %i" read)
                             let reallyReadBuffer = buffer.Array.[0 .. read - 1]
                             segments.Add reallyReadBuffer
-                        let header, result = processSegements header segments
+                        let header, segments = processSegements header segments
                         return! loop header segments
                     with ex ->
                         logger.Error(printf "reading failed for %O exception was %O" socket.RemoteEndPoint ex)
@@ -162,11 +167,13 @@ type PeerToPeerConnectionManager(port, seedDnses, magicNumber) as this =
         loop()
 
     let openConnections() =
-        findInitalPeers()
+        seedIps
         |> Seq.map createAndStoreConnection
         |> Async.Parallel
         |> Async.Ignore
         |> Async.Start
+
+    new (magicNumber, port, seedDnses) = PeerToPeerConnectionManager(magicNumber, port, PeerToPeerHelpers.findInitalPeers seedDnses)
 
     member x.Connect() =
         startAcceptLoop() |> Async.Start
