@@ -1,4 +1,4 @@
-﻿namespace BitcoinFs
+namespace BitcoinFs
 open System.Net
 open System.Security.Cryptography
 open NLog
@@ -26,7 +26,7 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
                 magicNumber messageName (uint32 messageBuffer.Length) checkSum
         [| yield! header.Serialize(); yield! messageBuffer |]
 
-    member x.CreateBufferWithHeader (message: IBinarySerializable<'a>) =
+    member x.CreateBufferWithHeader (message: IBinarySerializable) =
         let messageBuffer = message.Serialize()
         x.CreateBufferWithHeaderFromBuffer messageBuffer
 
@@ -65,6 +65,7 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
             let verack = x.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
             responseActions.ReplyChannel address verack 
         | Verack ->
+            // TODO store verack wiht connection details
             logger.Info("verack")
         | Addr -> 
             let addr, _ = Address.Parse buffer 0

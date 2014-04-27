@@ -40,7 +40,7 @@ let main argv =
 
     System.Console.ReadLine() |> ignore
 
-    //connMan.BroadcastGetAddr()
+    //connMan.BroadcastMemPool()
     //System.Console.ReadLine() |> ignore
 
     0

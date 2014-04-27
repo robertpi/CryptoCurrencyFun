@@ -1,4 +1,4 @@
-﻿namespace BitcoinFs
+namespace BitcoinFs
 open System
 open System.Net
 open System.Net.Sockets
@@ -53,6 +53,8 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
             logger.Debug(sprintf "sending message to %O" ip)
             sendMessage socket buffer
 
+    // TODO any network connection  that throws an exception
+    // TODO store meta data about the connections, including last ping, verack
     let activeSendConnections =
         MailboxProcessor.Start(fun box ->
                                     let rec connectionLoop (connections: ResizeArray<Socket>) =
@@ -178,6 +180,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
 
     new (magicNumber, port, seedDnses) = PeerToPeerConnectionManager(magicNumber, port, PeerToPeerHelpers.findInitalPeers seedDnses)
 
+    // TOOD need a way to specify whether we should limit connections or try to maximize them
     member x.Connect() =
         startAcceptLoop() |> Async.Start
         openConnections()
@@ -195,13 +198,18 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
         let buffer = messageProcessor.CreateBufferWithHeader ping MessageNames.GetAddr
         activeSendConnections.Post(Broadcast buffer)
 
+    // TODO generic boardcast, send to specify node, send to random node methods
+
     [<CLIEvent>]
     member this.InvReceived = invReceivedEvent.Publish
+    [<CLIEvent>]
     member this.AddrReceived = addrReceivedEvent.Publish
 
     interface IMessageResponseAction with
         member x.ReplyChannel address buffer = sendMessageTo address buffer
         member x.HandleInvReceived  (inv:InventoryDetails) = 
+            // TODO inv message is meaningless with out knowing the node it came from
             invReceivedEvent.Trigger(x, inv)
         member x.HandleAddrReceived (addr: Address) = 
+            // TODO may want to expand the peer to peer connection
             addrReceivedEvent.Trigger(x, addr)

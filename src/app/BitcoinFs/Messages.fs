@@ -1,5 +1,6 @@
 ﻿namespace BitcoinFs.Messages
 open BitcoinFs
+open BitcoinFs.Constants
 open System
 
 module MessageNames =
@@ -114,7 +115,7 @@ type Version106 =
            yield! Conversion.stringToVariableLengthString x.UserAgent
            yield! BitConverter.GetBytes(x.StartHeight)
            yield! BitConverter.GetBytes(x.Relay) |]
-    interface IBinarySerializable<Version106> with
+    interface IBinarySerializable with
         member x.Serialize() = x.Serialize()
 
     static member CreateVersion106 fromAddress port  =
@@ -153,7 +154,7 @@ type Version =
            yield! BitConverter.GetBytes(x.Timestamp)
            yield! x.AddressReceive.Serialize()
            yield! extras |]
-    interface IBinarySerializable<Version> with
+    interface IBinarySerializable with
         member x.Serialize() = x.Serialize()
 
     static member Parse buffer =
@@ -175,7 +176,7 @@ type Version =
     
     static member CreateMyVersion receiveAddress receivePort fromAddress fromPort =
         let extras = Version106.CreateVersion106 fromAddress fromPort
-        { Version = 70002
+        { Version = Global.ProtocolVersion
           Service = 1uL
           Timestamp = Time.getUnixTimeNow()
           AddressReceive = NetworkAddress.GetNetworkAddress receiveAddress receivePort
@@ -188,7 +189,7 @@ type Address = //addr
         let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
         let addresses, offSet =
             Conversion.parseBuffer buffer offSet (int count) 
-              (fun offSet buffer -> NetworkAddress.Parse offSet buffer 70002)
+              (fun offSet buffer -> NetworkAddress.Parse offSet buffer Global.ProtocolVersion)
         { Count = count
           AddressList = addresses |> Seq.toArray }, offSet
 
@@ -208,6 +209,11 @@ type GetSpec = // getblocks , getheaders
       HashCount: uint64
       BlockLocatorHashes: byte[][]
       HashStop: byte[] }
+    static member Create() =
+      { Version = uint32 Global.ProtocolVersion
+        HashCount = 0uL
+        BlockLocatorHashes = [||]
+        HashStop = [||] }
 
 type Headers = // headers
     { Count: uint32
@@ -217,7 +223,7 @@ type PingPong = // ping pong
     { Nonce: uint64 }
     member x.Serialize() =
         BitConverter.GetBytes(x.Nonce)
-    interface IBinarySerializable<Version> with
+    interface IBinarySerializable with
         member x.Serialize() = x.Serialize()
     static member Create()  =
         { Nonce = Crypto.CreateNonce64() }

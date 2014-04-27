@@ -1,4 +1,8 @@
 namespace BitcoinFs.Constants
+
+module Global =
+    let ProtocolVersion = 70002
+
 module MagicNumbers =
     let Bitcoin = 0xD9B4BEF9u
     let BitcoinTestnet = 0xDAB5BFFAu

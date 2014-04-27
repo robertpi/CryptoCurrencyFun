@@ -1,5 +1,5 @@
 ﻿namespace BitcoinFs 
 
-type IBinarySerializable<'a> =
+type IBinarySerializable =
     abstract Serialize: unit -> array<byte>
 
