@@ -6,6 +6,7 @@ open System.IO
 open System.Text
 open NUnit.Framework
 open FsUnit
+open BitcoinFs.Messages
 
 // TODO find better place for this helper
 let hexdump (bytes: byte[]) (start: int) (length: int) =
@@ -2209,7 +2210,7 @@ let message6 = [|0x1uy;
 [<Test>]
 let readFailedMessage() =
     printfn "message.Length %i" message6.Length
-    let block = BlockParser.readMessage 0L message6
+    let block, _ = Block.Parse 0L message6
     printfn "%A" block
 
 [<Test>]

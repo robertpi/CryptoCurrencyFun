@@ -1,7 +1,12 @@
 ﻿namespace BitcoinFs.Messages
+open System
+open System.Security.Cryptography
+open NLog
 open BitcoinFs
 open BitcoinFs.Constants
-open System
+
+module Messages =
+    let logger = LogManager.GetLogger("Messages")
 
 module MessageNames =
     [<Literal>]
@@ -192,6 +197,11 @@ type Address = //addr
               (fun offSet buffer -> NetworkAddress.Parse offSet buffer Global.ProtocolVersion)
         { Count = count
           AddressList = addresses |> Seq.toArray }, offSet
+    member x.Serialize() =
+        [| yield! Conversion.encodeVariableLengthInt(x.Count)
+           yield! x.AddressList |> Seq.map (fun x -> x.Serialize()) |> Seq.concat |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 type InventoryDetails = // inv, getdata & notfound (at the moment don't see how getdata is useful)
     { Count: uint64
@@ -231,8 +241,19 @@ type GetSpec = // getblocks , getheaders
         member x.Serialize() = x.Serialize()
 
 type Headers = // headers
-    { Count: uint32
+    { Count: uint64
       Headers: Header[] }
+    static member Parse buffer offSet =
+        let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let headers, offSet =
+            Conversion.parseBuffer buffer offSet (int count) Header.Parse
+        { Count = count
+          Headers = headers |> Seq.toArray }, offSet
+    member x.Serialize() =
+        [| yield! Conversion.encodeVariableLengthInt(x.Count)
+           yield! x.Headers |> Seq.map (fun x -> x.Serialize()) |> Seq.concat |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 type PingPong = // ping pong
     { Nonce: uint64 }
@@ -268,6 +289,27 @@ type Output =
       OutputScript: array<byte>
       ParsedOutputScript: option<array<Op>>
       CanonicalOutputScript: option<CanonicalOutputScript> }
+    static member Parse offSet buffer =
+        let output, offSet = Conversion.bytesToInt64 offSet buffer
+        
+        Messages.logger.Debug(sprintf "output 0x%x" offSet)
+        let challengeScriptLength, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        Messages.logger.Debug(sprintf "challengeScriptLength value 0x%x"  challengeScriptLength)
+
+        let challengeScriptLengthInt = int challengeScriptLength
+        
+        Messages.logger.Debug(sprintf "challengeScript 0x%x" offSet)
+        let challengeScript, offSet = Conversion.readByteBlock offSet challengeScriptLengthInt buffer
+
+        let parsedScript = ScriptParser.parseScript challengeScript
+        let canonicalOutputScript = Option.bind ScriptParser.parseStandardOutputScript parsedScript
+
+        { Value = output
+          OutputScriptLength = challengeScriptLength
+          OutputScript =  challengeScript
+          ParsedOutputScript = parsedScript
+          CanonicalOutputScript =  canonicalOutputScript }, 
+        offSet
 
 type Input =
     { InputHash: array<byte>
@@ -276,6 +318,36 @@ type Input =
       ResponseScript: array<byte>
       ParsedResponseScript: option<array<Op>>
       SequenceNumber: int }
+    static member Parse offSet buffer =
+        let inputHash, offSet = Conversion.readByteBlock offSet 32 buffer
+
+        Messages.logger.Debug(sprintf "inputTransactionIndex 0x%x" offSet)
+        let inputTransactionIndex, offSet = Conversion.bytesToInt32 offSet buffer
+
+        Messages.logger.Debug(sprintf "inputTransactionIndex value 0x%x" inputTransactionIndex)
+
+        Messages.logger.Debug(sprintf "responseScriptLength 0x%x" offSet)
+        let responseScriptLength, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let responseScriptLengthInt = int responseScriptLength // assume responseScriptLength will always fit into an int32
+        
+        Messages.logger.Debug(sprintf "responseScript 0x%x responseScriptLengthInt %x" offSet responseScriptLengthInt)
+        let responseScript, offSet = Conversion.readByteBlock offSet responseScriptLengthInt  buffer
+        
+        Messages.logger.Debug(sprintf "sequenceNumber 0x%x" offSet)
+        let sequenceNumber, offSet = Conversion.bytesToInt32 offSet buffer
+
+        // nice sanity check that we've correctly found end of the responseScript
+        //if sequenceNumber <> -1 then failwith "sequenceNumber number is unused so should always be -1"
+
+        let parsedScript = ScriptParser.parseScript responseScript
+
+        { InputHash = inputHash
+          InputTransactionIndex = inputTransactionIndex
+          ResponseScriptLength = responseScriptLength
+          ResponseScript = responseScript
+          ParsedResponseScript = parsedScript
+          SequenceNumber = sequenceNumber },
+        offSet
 
 type Transaction = 
     { TransactionVersion: int
@@ -285,6 +357,38 @@ type Transaction =
       Outputs: array<Output>
       LockTime: int
       TransactionHash: array<byte> }
+    static member Parse offSet buffer =
+        let initalOffSet = offSet
+
+        Messages.logger.Debug(sprintf "transactionVersion 0x%x" offSet)
+        let transactionVersion, offSet = Conversion.bytesToInt32 offSet buffer
+
+        Messages.logger.Debug(sprintf "numberOfInputs 0x%x" offSet)
+        let numberOfInputs, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let inputs, offSet =
+            Conversion.parseBuffer buffer offSet (int numberOfInputs) Input.Parse
+
+        Messages.logger.Debug(sprintf "numberOfOutputs 0x%x" offSet)
+        let numberOfOutputs, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let outputs, offSet =
+            Conversion.parseBuffer buffer offSet (int numberOfOutputs) Output.Parse
+
+        Messages.logger.Debug(sprintf "lockTime 0x%x" offSet)
+        let lockTime, offSet = Conversion.bytesToInt32 offSet buffer
+        
+        let sha256 = SHA256.Create()
+        let transactionHash = sha256.ComputeHash(sha256.ComputeHash(buffer, initalOffSet, offSet - initalOffSet))
+
+        Messages.logger.Debug(sprintf "final from transaction 0x%x lockTime 0x%x" offSet lockTime)
+        
+        { TransactionVersion = transactionVersion
+          NumberOfInputs = numberOfInputs
+          Inputs = inputs |> Array.ofList
+          NumberOfOutputs = numberOfOutputs
+          Outputs = Array.ofList outputs
+          LockTime = lockTime
+          TransactionHash = transactionHash }, 
+        offSet
 
 type Block =
     { OffSet: int64
@@ -297,3 +401,44 @@ type Block =
       Nonce: int
       NumberOfTransactions: uint64
       Transactions: array<Transaction> }
+    static member Parse offSet buffer =
+        let initOffSet = offSet
+
+        let version, offSet = Conversion.bytesToInt32 0 buffer
+
+        Messages.logger.Debug(sprintf "hash 0x%x" offSet)
+        let hash, offSet = Conversion.readByteBlock offSet 32 buffer
+
+        Messages.logger.Debug(sprintf "merKleRoot 0x%x" offSet)
+        let merkleRoot, offSet = Conversion.readByteBlock offSet 32 buffer
+        
+        Messages.logger.Debug(sprintf "timestamp 0x%x" offSet)
+        let timestampInt, offSet = Conversion.bytesToInt32 offSet buffer
+        let timestamp = Conversion.dateTimeOfUnixEpoc timestampInt
+        
+        Messages.logger.Debug(sprintf "target 0x%x" offSet)
+        let target, offSet = Conversion.bytesToInt32 offSet buffer
+        
+        Messages.logger.Debug(sprintf "nonce 0x%x" offSet)
+        let nonce, offSet = Conversion.bytesToInt32 offSet buffer
+        
+        Messages.logger.Debug(sprintf "numberOfTransactions 0x%x" offSet)
+        let numberOfTransactions, offSet = Conversion.decodeVariableLengthInt offSet buffer
+
+        Messages.logger.Debug(sprintf "numberOfTransactions value 0x%x" numberOfTransactions)
+
+        let transactions, offSet =
+            Conversion.parseBuffer buffer offSet (int numberOfTransactions) Transaction.Parse
+
+        { OffSet = initOffSet
+          Length = buffer.Length
+          Version = version
+          Hash = hash
+          MerKleRoot = merkleRoot
+          Timestamp = timestamp
+          Target = target
+          Nonce = nonce
+          NumberOfTransactions = numberOfTransactions
+          Transactions = Array.ofList transactions },
+        offSet
+

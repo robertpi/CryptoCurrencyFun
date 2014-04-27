@@ -102,6 +102,9 @@ type InventoryVectorType =
 type InventoryVector =
     { Type: InventoryVectorType
       Hash: byte[] }
+    static member Create t hash  =
+      { Type = t
+        Hash = hash }
     static member Parse offSet buffer  =
         let invertyType, offSet = Conversion.bytesToUInt32 offSet buffer
         let hash, offSet = Conversion.readByteBlock offSet 32 buffer
@@ -123,3 +126,29 @@ type Header =
       Bits: uint32
       Nonce: uint32
       TransactionCount: uint64 }
+    static member Parse offSet buffer  =
+        let version, offSet = Conversion.bytesToUInt32 offSet buffer
+        let prevBlock, offSet = Conversion.readByteBlock offSet 32 buffer
+        let merkleRoot, offSet = Conversion.readByteBlock offSet 32 buffer
+        let timestamp, offSet = Conversion.bytesToUInt32 offSet buffer
+        let bits, offSet = Conversion.bytesToUInt32 offSet buffer
+        let nonce, offSet = Conversion.bytesToUInt32 offSet buffer
+        let transCount, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        { Version = version
+          PrevBlock = prevBlock
+          MerkleRoot = merkleRoot
+          Timestamp = timestamp
+          Bits = bits
+          Nonce = nonce
+          TransactionCount = transCount },
+        offSet
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(x.Version) 
+           yield! x.PrevBlock
+           yield! x.MerkleRoot
+           yield! BitConverter.GetBytes(x.Timestamp)
+           yield! BitConverter.GetBytes(x.Bits)
+           yield! BitConverter.GetBytes(x.Nonce)
+           yield! Conversion.encodeVariableLengthInt x.TransactionCount |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()

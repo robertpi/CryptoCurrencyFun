@@ -55,9 +55,9 @@
     <Compile Include="Address.fs" />
     <Compile Include="ScriptOps.fs" />
     <Compile Include="IBinarySerializable.fs" />
+    <Compile Include="ScriptParser.fs" />
     <Compile Include="CommonMessages.fs" />
     <Compile Include="Messages.fs" />
-    <Compile Include="ScriptParser.fs" />
     <Compile Include="BitcoinDataDir.fs" />
     <Compile Include="BlockParser.fs" />
     <Compile Include="AsyncSockets.fs" />
