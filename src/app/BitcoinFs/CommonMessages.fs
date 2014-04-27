@@ -108,6 +108,11 @@ type InventoryVector =
         { Type = enum (invertyType |> int)
           Hash = hash },
         offSet
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(uint32 x.Type) 
+           yield! x.Hash |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 
 type Header =

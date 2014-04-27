@@ -183,7 +183,7 @@ type Version =
           Extras106 = Some extras }
 
 type Address = //addr 
-    { Count: int64
+    { Count: uint64
       AddressList: NetworkAddress[] }
     static member Parse buffer offSet =
         let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
@@ -194,14 +194,22 @@ type Address = //addr
           AddressList = addresses |> Seq.toArray }, offSet
 
 type InventoryDetails = // inv, getdata & notfound (at the moment don't see how getdata is useful)
-    { Count: int64
+    { Count: uint64
       Invertory: InventoryVector[] }
+    static member Create count inventory =
+      { Count = count
+        Invertory = inventory }
     static member Parse buffer offSet =
         let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
         let invs, offSet =
             Conversion.parseBuffer buffer offSet (int count) InventoryVector.Parse
         { Count = count
           Invertory = invs |> Seq.toArray }, offSet
+    member x.Serialize() =
+        [| yield! Conversion.encodeVariableLengthInt(x.Count)
+           yield! x.Invertory |> Seq.map (fun x -> x.Serialize()) |> Seq.concat |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 
 type GetSpec = // getblocks , getheaders
@@ -209,11 +217,18 @@ type GetSpec = // getblocks , getheaders
       HashCount: uint64
       BlockLocatorHashes: byte[][]
       HashStop: byte[] }
-    static member Create() =
-      { Version = uint32 Global.ProtocolVersion
-        HashCount = 0uL
-        BlockLocatorHashes = [||]
-        HashStop = [||] }
+    static member Create version count blockLocatorHashes hashStop =
+      { Version = version
+        HashCount = count
+        BlockLocatorHashes = blockLocatorHashes
+        HashStop = hashStop }
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(x.Version)
+           yield! Conversion.encodeVariableLengthInt(x.HashCount)
+           yield! Seq.concat x.BlockLocatorHashes
+           yield! x.HashStop |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 type Headers = // headers
     { Count: uint32
@@ -249,7 +264,7 @@ type Alert =
 
 type Output =
     { Value: int64
-      OutputScriptLength: int64
+      OutputScriptLength: uint64
       OutputScript: array<byte>
       ParsedOutputScript: option<array<Op>>
       CanonicalOutputScript: option<CanonicalOutputScript> }
@@ -257,16 +272,16 @@ type Output =
 type Input =
     { InputHash: array<byte>
       InputTransactionIndex: int
-      ResponseScriptLength: int64
+      ResponseScriptLength: uint64
       ResponseScript: array<byte>
       ParsedResponseScript: option<array<Op>>
       SequenceNumber: int }
 
 type Transaction = 
     { TransactionVersion: int
-      NumberOfInputs: int64
+      NumberOfInputs: uint64
       Inputs: array<Input>
-      NumberOfOutputs: int64
+      NumberOfOutputs: uint64
       Outputs: array<Output>
       LockTime: int
       TransactionHash: array<byte> }
@@ -280,5 +295,5 @@ type Block =
       Timestamp: DateTime
       Target: int
       Nonce: int
-      NumberOfTransactions: int64
+      NumberOfTransactions: uint64
       Transactions: array<Transaction> }

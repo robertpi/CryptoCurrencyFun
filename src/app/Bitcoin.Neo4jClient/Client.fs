@@ -41,7 +41,7 @@ type NeoBlock =
       Length: int
       Target: int
       Nonce: int
-      NumberOfTransactions: int64 } 
+      NumberOfTransactions: uint64 } 
 
 module LoadBlockChainModel =
     let logger = LogManager.GetLogger("LoadBlockChainModel")

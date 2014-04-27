@@ -99,32 +99,33 @@ module Conversion =
 
     let decodeVariableLengthInt startIndex (bytes: byte[]) =
         match bytes.[startIndex] with
-        | x when x < 0xfduy -> int64 x, startIndex + 1
+        | x when x < 0xfduy -> uint64 x, startIndex + 1
         | x when x = 0xfduy -> 
             // note: could have directly converted using bytesToUInt16, but wasn't sure if there were endian problems here
             let intBlock, offSet = readByteBlock (startIndex + 1) 2 bytes
             let res, _ = bytesToUInt16 0 intBlock 
-            int64 res, offSet
+            uint64 res, offSet
         | x when x = 0xfeuy -> 
             let intBlock, offSet = readByteBlock (startIndex + 1) 4 bytes
             let res, _ = bytesToUInt32 0 intBlock 
-            int64 res, offSet
+            uint64 res, offSet
         | x when x = 0xffuy ->
             let intBlock, offSet = readByteBlock (startIndex + 1) 8 bytes
             let res, _ = bytesToUInt64 0 intBlock 
-            int64 res, offSet
+            res, offSet
         | _ -> failwith "unexpectedly large byte :)"
 
-    let encodeVariableLengthInt (i: int64) =
+    let encodeVariableLengthInt (i: uint64) =
         match i with
-        | _ when i < 0xfdL -> [| byte i |]
-        | _ when i <= 0xffffL -> [| yield 0xfduy; yield! BitConverter.GetBytes(i) |> Seq.take 2 |]
-        | _ when i <= 0xffffffffL -> [| yield 0xfeuy; yield! BitConverter.GetBytes(i) |> Seq.take 4 |]
+        | _ when i < 0xfduL -> [| byte i |]
+        | _ when i <= 0xffffuL -> [| yield 0xfduy; yield! BitConverter.GetBytes(i) |> Seq.take 2 |]
+        | _ when i <= 0xffffffffuL -> [| yield 0xfeuy; yield! BitConverter.GetBytes(i) |> Seq.take 4 |]
         | _ -> [| yield 0xffuy; yield! BitConverter.GetBytes(i) |]
 
     let stringToVariableLengthString (s: String) =
         let bytes = Encoding.ASCII.GetBytes s
-        [| yield! encodeVariableLengthInt bytes.LongLength; yield! bytes |]
+        let i = uint64 bytes.LongLength
+        [| yield! encodeVariableLengthInt i; yield! bytes |]
 
     let variableLengthStringToString offSet buffer =
         let longLength, offSet = decodeVariableLengthInt offSet buffer
