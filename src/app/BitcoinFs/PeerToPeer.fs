@@ -1,5 +1,6 @@
 namespace BitcoinFs
 open System
+open System.Collections.Generic
 open System.Net
 open System.Net.Sockets
 open System.Security.Cryptography
@@ -22,6 +23,14 @@ type MessageReceivedEventArgs(address: IPAddress, message: Message) =
     inherit EventArgs()
     member x.Address = address
     member x.Message = message
+
+type internal ConnectionDetails =
+    { Socket: Socket
+      mutable LastPing: DateTime }
+    static member Create s =
+        { Socket = s
+          LastPing = DateTime.MinValue }
+
 
 type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
 
@@ -60,33 +69,43 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
     // TODO store meta data about the connections, including last ping, verack
     let activeSendConnections =
         MailboxProcessor.Start(fun box ->
-                                    let rec connectionLoop (connections: ResizeArray<Socket>) =
+                                    let rec connectionLoop (connections: Dictionary<IPAddress, ConnectionDetails>) =
                                         async { try
                                                     let! msg = box.Receive()
+                                                    let deadSockets = 
+                                                        connections 
+                                                        |> Seq.filter (fun x -> not x.Value.Socket.Connected)
+                                                        |> Seq.toList
+                                                    for deadSocket in deadSockets do
+                                                        connections.Remove(deadSocket.Key) |> ignore
                                                     match msg with
-                                                    | Add socket -> 
-                                                        connections.Add socket
+                                                    | Add socket ->
+                                                        let cd = ConnectionDetails.Create socket 
+                                                        let ip, _ = getRemoteAddress socket
+                                                        connections.Add(ip, cd)
                                                         return! connectionLoop connections
                                                     | Remove socket -> 
-                                                        connections.Remove  |> ignore
+                                                        // TODO this could fail, try removing by socket reference if it does
+                                                        let ip, _ = getRemoteAddress socket
+                                                        connections.Remove ip  |> ignore
                                                         return! connectionLoop connections
                                                     | Broadcast buffer ->
-                                                        logger.Debug("about to boardcast")
-                                                        broadcast (connections.ToArray()) buffer
+                                                        let sockets =
+                                                            connections.Values |> Seq.map (fun x -> x.Socket) |> Seq.toArray
+                                                        broadcast sockets buffer
                                                         return! connectionLoop connections
                                                     | SendMessage (address, buffer) ->
-                                                        let socket = 
-                                                            connections 
-                                                            |> Seq.tryFind (fun x -> getRemoteAddress x |> fst = address)
-                                                        match socket with
-                                                        | Some socket -> sendMessage socket buffer
-                                                        | None -> logger.Error(sprintf "failed to send message to %O" address)
+                                                        let succes, socket = 
+                                                            connections.TryGetValue(address) 
+                                                        match succes with
+                                                        | true -> sendMessage socket.Socket buffer
+                                                        | false -> logger.Error(sprintf "failed to send message to %O" address)
                                                         return! connectionLoop connections
                                                 with ex ->
                                                     logger.Warn(sprintf "SAVED event loop from %O" ex)
                                                     // TODO check if it's network excpetion and remove socket
                                                     return! connectionLoop connections }
-                                    connectionLoop (new ResizeArray<Socket>()))
+                                    connectionLoop (new Dictionary<IPAddress, ConnectionDetails>()))
 
     let sendMessageTo address messageBuffer =
         activeSendConnections.Post(SendMessage(address, messageBuffer))

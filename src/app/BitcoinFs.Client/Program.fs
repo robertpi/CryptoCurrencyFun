@@ -38,6 +38,8 @@ let statsOnMessageType (event: IEvent<Handler<MessageReceivedEventArgs>,MessageR
     |> Event.every 50
     |> Event.add (printfn "%40A")
 
+// --------------------------------
+
 let printInvNode (inv: InventoryVector) =
     let hash = Conversion.littleEndianBytesToHexString inv.Hash
     sprintf "%s - %O" hash inv.Type
@@ -124,8 +126,10 @@ let main argv =
 
     LogManager.Configuration <- config
 
-    let seedIps = SeedDns.Bitcoin |> Seq.collect nslookup 
-    let connMan = new PeerToPeerConnectionManager(MagicNumbers.Bitcoin, Ports.Bitcoin, seedIps)
+    let seedIps = SeedDns.Litecoin |> Seq.collect nslookup 
+    let connMan = new PeerToPeerConnectionManager(MagicNumbers.Litecoin, Ports.Litecoin, seedIps)
+
+    //connMan.MessageReceived |> statsOnMessageType
 
     connMan.MessageReceived |> (testGetData connMan)
     connMan.MessageReceived |> Event.add handleTransMessage
