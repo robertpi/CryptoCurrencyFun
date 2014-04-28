@@ -229,8 +229,11 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
 
     member x.Broadcast message =
         let buffer = messageProcessor.CreateBufferWithHeaderFromMessage message
-        logger.Debug("got buffer")
         activeSendConnections.Post(Broadcast buffer)
+
+    member x.SendTo address message =
+        let buffer = messageProcessor.CreateBufferWithHeaderFromMessage message
+        sendMessageTo address buffer
 
     [<CLIEvent>]
     member this.MessageReceived = 
