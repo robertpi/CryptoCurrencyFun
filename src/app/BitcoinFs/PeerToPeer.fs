@@ -18,15 +18,18 @@ module internal PeerToPeerHelpers =
         seedDnses
         |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
 
+type MessageReceivedEventArgs(address: IPAddress, message: Message) =
+    inherit EventArgs()
+    member x.Address = address
+    member x.Message = message
 
 type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as this =
 
     let logger = LogManager.GetCurrentClassLogger()
 
-    let messageProcessor =  new MessageProcessor(magicNumber, this)
+    let messageProcessor =  new MessageProcessor(magicNumber)
 
-    let invReceivedEvent = new Event<_>()
-    let addrReceivedEvent = new Event<_>()
+    let toMessageRecivedEA (address, message) = new MessageReceivedEventArgs(address, message)
 
     let addressOfEndpoint (endPoint: EndPoint) =
         match endPoint with
@@ -178,6 +181,39 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
         |> Async.Ignore
         |> Async.Start
 
+    let handleMessage (address, message) =
+        match message with
+        | Version version ->
+            let verack = messageProcessor.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
+            sendMessageTo address verack 
+        | Verack -> ()
+        | Addr address -> ()
+        | Inv invDetails -> ()
+        | GetData invDetails -> ()
+        | NotFound invDetails -> ()
+        | GetBlocks getSpec -> ()
+        | GetHeaders getSpec -> ()
+        | Tx trans -> ()
+        | Block block -> ()
+        | Headers headers -> ()
+        | GetAddr -> ()
+        | MemPool -> ()
+        | CheckOrder -> ()
+        | SumbitOrder -> ()
+        | Reply -> ()
+        | Ping ping ->
+            let buffer = messageProcessor.CreateBufferWithHeader ping MessageNames.Pong
+            sendMessageTo address buffer
+        | Pong pong -> ()
+        | FilterLoad -> ()
+        | FilterAdd -> ()
+        | FilterClear -> ()
+        | MerkleBlock -> ()
+        | Alert alert -> ()
+        | Unknown (name, buffer) -> ()
+
+    do messageProcessor.MessageReceived |> Event.add handleMessage
+
     new (magicNumber, port, seedDnses) = PeerToPeerConnectionManager(magicNumber, port, PeerToPeerHelpers.findInitalPeers seedDnses)
 
     // TOOD need a way to specify whether we should limit connections or try to maximize them
@@ -201,15 +237,6 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
     // TODO generic boardcast, send to specify node, send to random node methods
 
     [<CLIEvent>]
-    member this.InvReceived = invReceivedEvent.Publish
-    [<CLIEvent>]
-    member this.AddrReceived = addrReceivedEvent.Publish
-
-    interface IMessageResponseAction with
-        member x.ReplyChannel address buffer = sendMessageTo address buffer
-        member x.HandleInvReceived  (inv:InventoryDetails) = 
-            // TODO inv message is meaningless with out knowing the node it came from
-            invReceivedEvent.Trigger(x, inv)
-        member x.HandleAddrReceived (addr: Address) = 
-            // TODO may want to expand the peer to peer connection
-            addrReceivedEvent.Trigger(x, addr)
+    member this.MessageReceived = 
+        messageProcessor.MessageReceived
+        |> Event.map toMessageRecivedEA

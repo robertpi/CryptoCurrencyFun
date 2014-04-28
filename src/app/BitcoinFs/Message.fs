@@ -11,7 +11,7 @@ type Message =
     | GetHeaders of GetSpec
     | Tx of Transaction
     | Block of Block
-    | Header of Headers
+    | Headers of Headers
     | GetAddr
     | MemPool
     | CheckOrder

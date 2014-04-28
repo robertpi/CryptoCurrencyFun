@@ -10,14 +10,13 @@ type CheckMessageResult =
     | Corrupt of byte[]
     | Complete of byte[] * byte[]
 
-type internal IMessageResponseAction =
-    abstract member ReplyChannel: source: IPAddress -> buffer: byte[] -> unit
-    abstract member HandleInvReceived: inv:InventoryDetails -> unit
-    abstract member HandleAddrReceived: addr:Address -> unit
-
-type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAction) =
+type internal MessageProcessor(magicNumber) =
 
     let logger = LogManager.GetCurrentClassLogger()
+
+    let messageReceivedEvent = new Event<_>()
+
+    member __.MessageReceived = messageReceivedEvent.Publish
 
     member __.CreateBufferWithHeaderFromBuffer messageBuffer messageName =
         let checkSum = Crypto.ComputerCheckSum messageBuffer
@@ -46,73 +45,78 @@ type internal MessageProcessor(magicNumber, responseActions: IMessageResponseAct
             //logger.Debug(sprintf "Incomplete %A" header)
             Incomplete
 
-    member x.ProcessMessage header buffer address =
-        match header.Command |> MessageName.Parse with
-        | VersionName -> 
-            let version = Version.Parse buffer
-            let ip = IPAddress.Any
-            let ipTo = 
-                new IPAddress(version.AddressReceive.Address)
-                |> fun x -> x.ToString()
-            let ipFrom, userAgent, relay, startHeight, nonce = 
-                match version.Extras106 with
-                | Some x -> 
-                    let ip = new IPAddress(x.AddressFrom.Address)
-                    ip.ToString(), x.UserAgent, x.Relay, x.StartHeight, x.Nonce
-                | None -> "", "", false, 0, 0uL
-            logger.Info(sprintf "version %s -> %s %i %s Sevice %i Relay %b StartHeight %i Nonce %i" 
-                            ipFrom ipTo version.Version userAgent version.Service relay startHeight nonce) 
-            let verack = x.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
-            responseActions.ReplyChannel address verack 
-        | VerackName ->
-            // TODO store verack wiht connection details
-            logger.Info("verack")
-        | AddrName -> 
-            let addr, _ = Address.Parse buffer 0
-            responseActions.HandleAddrReceived addr
-        | InvName ->
-            let invDetails, _ = InventoryDetails.Parse buffer 0
-            responseActions.HandleInvReceived invDetails
-        | GetDataName -> 
-            logger.Info(sprintf "%A" header)
-        | NotFoundName -> 
-            logger.Info(sprintf "%A" header)
-        | GetBlocksName ->
-            logger.Info(sprintf "%A" header)
-        | GetHeadersName -> 
-            logger.Info(sprintf "%A" header)
-        | TxName ->
-            logger.Info(sprintf "%A" header)
-        | BlockName ->
-            logger.Info(sprintf "%A" header)
-        | HeaderName ->
-            logger.Info(sprintf "%A" header)
-        | GetAddrName ->
-            logger.Info(sprintf "%A" header)
-        | MemPoolName ->
-            logger.Info(sprintf "%A" header)
-        | CheckOrderName ->
-            logger.Info(sprintf "%A" header)
-        | SumbitOrderName ->
-            logger.Info(sprintf "%A" header)
-        | ReplyName ->
-            logger.Info(sprintf "%A" header)
-        | PingName ->
-            logger.Info(sprintf "recieved ping")
-            let ping = PingPong.Parse buffer
-            let buffer = x.CreateBufferWithHeader ping MessageNames.Pong
-            responseActions.ReplyChannel address buffer
-        | PongName ->
-            logger.Info(sprintf "%A" header)
-        | FilterLoadName ->
-            logger.Info(sprintf "%A" header)
-        | FilterAddName ->
-            logger.Info(sprintf "%A" header)
-        | FilterClearName ->
-            logger.Info(sprintf "%A" header)
-        | MerkleBlockName ->
-            logger.Info(sprintf "%A" header)
-        | AlertName ->
-            logger.Info(sprintf "%A" header)
-        | UnknownName message ->
-            logger.Info(sprintf "unknow message: %A" header)
+    member x.ProcessMessage header buffer (address: IPAddress) =
+        let message =
+            match header.Command |> MessageName.Parse with
+            | VersionName -> 
+                let version = Version.Parse buffer
+                let ipTo = 
+                    new IPAddress(version.AddressReceive.Address)
+                    |> fun x -> x.ToString()
+                let ipFrom, userAgent, relay, startHeight, nonce = 
+                    match version.Extras106 with
+                    | Some x -> 
+                        let ip = new IPAddress(x.AddressFrom.Address)
+                        ip.ToString(), x.UserAgent, x.Relay, x.StartHeight, x.Nonce
+                    | None -> "", "", false, 0, 0uL
+                logger.Info(sprintf "version %s -> %s %i %s Sevice %i Relay %b StartHeight %i Nonce %i" 
+                                ipFrom ipTo version.Version userAgent version.Service relay startHeight nonce) 
+                Version version
+
+            | VerackName ->
+                Verack
+            | AddrName -> 
+                let addr, _ = Address.Parse buffer 0
+                Addr addr
+            | InvName ->
+                let invDetails, _ = InventoryDetails.Parse buffer 0
+                Inv invDetails
+            | GetDataName -> 
+                let invDetails, _ = InventoryDetails.Parse buffer 0
+                GetData invDetails
+            | NotFoundName -> 
+                let invDetails, _ = InventoryDetails.Parse buffer 0
+                NotFound invDetails
+            | GetBlocksName ->
+                let getSpec, _ = GetSpec.Parse buffer 0
+                GetBlocks getSpec
+            | GetHeadersName -> 
+                let getSpec, _ = GetSpec.Parse buffer 0
+                GetHeaders getSpec
+            | TxName ->
+                let tx, _ = Transaction.Parse 0 buffer 
+                Tx tx
+            | BlockName ->
+                let block, _ = Block.Parse 0L 0 buffer
+                Block block
+            | HeadersName ->
+                let headers, _ = Headers.Parse buffer 0
+                Headers headers
+            | GetAddrName ->
+                GetAddr
+            | MemPoolName ->
+                MemPool
+            | CheckOrderName ->
+                CheckOrder
+            | SumbitOrderName ->
+                SumbitOrder
+            | ReplyName ->
+                Reply
+            | PingName ->
+                let ping = PingPong.Parse buffer
+                Ping ping
+            | PongName ->
+                let pong = PingPong.Parse buffer
+                Pong pong
+            | FilterLoadName -> FilterLoad
+            | FilterAddName -> FilterAdd
+            | FilterClearName -> FilterClear
+            | MerkleBlockName -> MerkleBlock
+            | AlertName ->
+                let alert = Alert.Parse 0 buffer
+                Alert alert
+            | UnknownName message ->
+                logger.Info(sprintf "unknow message: %A" header)
+                Unknown (message, buffer)
+
+        messageReceivedEvent.Trigger(address, message)

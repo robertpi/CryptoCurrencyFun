@@ -30,7 +30,7 @@ module MessageNames =
     [<Literal>]
     let Block = "block"
     [<Literal>]
-    let Header = "header"
+    let Headers = "headers"
     [<Literal>]
     let GetAddr = "getaddr"
     [<Literal>]
@@ -67,7 +67,7 @@ type MessageName =
     | GetHeadersName
     | TxName
     | BlockName
-    | HeaderName
+    | HeadersName
     | GetAddrName
     | MemPoolName
     | CheckOrderName
@@ -93,7 +93,7 @@ type MessageName =
         | MessageNames.GetHeaders -> GetHeadersName
         | MessageNames.Tx -> TxName
         | MessageNames.Block -> BlockName
-        | MessageNames.Header -> HeaderName
+        | MessageNames.Headers -> HeadersName
         | MessageNames.GetAddr -> GetAddrName
         | MessageNames.MemPool -> MemPoolName
         | MessageNames.CheckOrder -> CheckOrderName
@@ -232,6 +232,17 @@ type GetSpec = // getblocks , getheaders
         HashCount = count
         BlockLocatorHashes = blockLocatorHashes
         HashStop = hashStop }
+    static member Parse buffer offSet =
+        let version, offSet = Conversion.bytesToUInt32 offSet buffer
+        let count, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let blockLocatorHashes, offSet =
+            Conversion.parseBuffer buffer offSet (int count) (fun offSet buffer -> Conversion.readByteBlock offSet 32 buffer)
+        let hashStop, offSet = Conversion.readByteBlock offSet 32 buffer
+        { Version = version
+          HashCount = count
+          BlockLocatorHashes = blockLocatorHashes |> Seq.toArray
+          HashStop = hashStop },
+        offSet
     member x.Serialize() =
         [| yield! BitConverter.GetBytes(x.Version)
            yield! Conversion.encodeVariableLengthInt(x.HashCount)
@@ -432,10 +443,8 @@ type Block =
       Nonce: int
       NumberOfTransactions: uint64
       Transactions: array<Transaction> }
-    static member Parse offSet buffer =
-        let initOffSet = offSet
-
-        let version, offSet = Conversion.bytesToInt32 0 buffer
+    static member Parse initOffSet offSet buffer =
+        let version, offSet = Conversion.bytesToInt32 offSet buffer
 
         Messages.logger.Debug(sprintf "hash 0x%x" offSet)
         let hash, offSet = Conversion.readByteBlock offSet 32 buffer

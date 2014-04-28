@@ -26,9 +26,9 @@ module BlockParser =
         | Message of Block
         | Error of Exception
 
-    let readMessageHandleError offSet messageBuffer =
+    let readMessageHandleError initOffSet messageBuffer =
         try
-            let message, _ = Block.Parse offSet messageBuffer
+            let message, _ = Block.Parse initOffSet 0 messageBuffer
             Message message
         with exc ->
             Error exc
