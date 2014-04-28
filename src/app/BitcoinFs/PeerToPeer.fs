@@ -61,25 +61,30 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
     let activeSendConnections =
         MailboxProcessor.Start(fun box ->
                                     let rec connectionLoop (connections: ResizeArray<Socket>) =
-                                        async { let! msg = box.Receive()
-                                                match msg with
-                                                | Add socket -> 
-                                                    connections.Add socket
-                                                    return! connectionLoop connections
-                                                | Remove socket -> 
-                                                    connections.Remove  |> ignore
-                                                    return! connectionLoop connections
-                                                | Broadcast buffer ->
-                                                    logger.Debug("about to boardcast")
-                                                    broadcast (connections.ToArray()) buffer
-                                                    return! connectionLoop connections
-                                                | SendMessage (address, buffer) ->
-                                                    let socket = 
-                                                        connections 
-                                                        |> Seq.tryFind (fun x -> getRemoteAddress x |> fst = address)
-                                                    match socket with
-                                                    | Some socket -> sendMessage socket buffer
-                                                    | None -> logger.Error(sprintf "failed to send message to %O" address)
+                                        async { try
+                                                    let! msg = box.Receive()
+                                                    match msg with
+                                                    | Add socket -> 
+                                                        connections.Add socket
+                                                        return! connectionLoop connections
+                                                    | Remove socket -> 
+                                                        connections.Remove  |> ignore
+                                                        return! connectionLoop connections
+                                                    | Broadcast buffer ->
+                                                        logger.Debug("about to boardcast")
+                                                        broadcast (connections.ToArray()) buffer
+                                                        return! connectionLoop connections
+                                                    | SendMessage (address, buffer) ->
+                                                        let socket = 
+                                                            connections 
+                                                            |> Seq.tryFind (fun x -> getRemoteAddress x |> fst = address)
+                                                        match socket with
+                                                        | Some socket -> sendMessage socket buffer
+                                                        | None -> logger.Error(sprintf "failed to send message to %O" address)
+                                                        return! connectionLoop connections
+                                                with ex ->
+                                                    logger.Warn(sprintf "SAVED event loop from %O" ex)
+                                                    // TODO check if it's network excpetion and remove socket
                                                     return! connectionLoop connections }
                                     connectionLoop (new ResizeArray<Socket>()))
 
