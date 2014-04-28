@@ -57,56 +57,56 @@ module MessageNames =
     let Alert = "alert"
 
 type MessageName =
-    | Version
-    | Verack
-    | Addr
-    | Inv
-    | GetData
-    | NotFound
-    | GetBlocks
-    | GetHeaders
-    | Tx
-    | Block
-    | Header
-    | GetAddr
-    | MemPool
-    | CheckOrder
-    | SumbitOrder
-    | Reply
-    | Ping
-    | Pong
-    | FilterLoad
-    | FilterAdd
-    | FilterClear
-    | MerkleBlock
-    | Alert
-    | Unknown of string
+    | VersionName
+    | VerackName
+    | AddrName
+    | InvName
+    | GetDataName
+    | NotFoundName
+    | GetBlocksName
+    | GetHeadersName
+    | TxName
+    | BlockName
+    | HeaderName
+    | GetAddrName
+    | MemPoolName
+    | CheckOrderName
+    | SumbitOrderName
+    | ReplyName
+    | PingName
+    | PongName
+    | FilterLoadName
+    | FilterAddName
+    | FilterClearName
+    | MerkleBlockName
+    | AlertName
+    | UnknownName of string
     static member Parse messageName =
         match messageName with
-        | MessageNames.Version -> Version
-        | MessageNames.Verack -> Verack
-        | MessageNames.Addr -> Addr
-        | MessageNames.Inv -> Inv
-        | MessageNames.GetData -> GetData
-        | MessageNames.NotFound -> NotFound
-        | MessageNames.GetBlocks -> GetBlocks
-        | MessageNames.GetHeaders -> GetHeaders
-        | MessageNames.Tx -> Tx
-        | MessageNames.Block -> Block
-        | MessageNames.Header -> Header
-        | MessageNames.GetAddr -> GetAddr
-        | MessageNames.MemPool -> MemPool
-        | MessageNames.CheckOrder -> CheckOrder
-        | MessageNames.SumbitOrder -> SumbitOrder
-        | MessageNames.Reply -> Reply
-        | MessageNames.Ping -> Ping
-        | MessageNames.Pong -> Pong
-        | MessageNames.FilterLoad -> FilterLoad
-        | MessageNames.FilterAdd -> FilterAdd
-        | MessageNames.FilterClear -> FilterClear
-        | MessageNames.MerkleBlock -> MerkleBlock
-        | MessageNames.Alert -> Alert
-        | _ -> Unknown messageName
+        | MessageNames.Version -> VersionName
+        | MessageNames.Verack -> VerackName
+        | MessageNames.Addr -> AddrName
+        | MessageNames.Inv -> InvName
+        | MessageNames.GetData -> GetDataName
+        | MessageNames.NotFound -> NotFoundName
+        | MessageNames.GetBlocks -> GetBlocksName
+        | MessageNames.GetHeaders -> GetHeadersName
+        | MessageNames.Tx -> TxName
+        | MessageNames.Block -> BlockName
+        | MessageNames.Header -> HeaderName
+        | MessageNames.GetAddr -> GetAddrName
+        | MessageNames.MemPool -> MemPoolName
+        | MessageNames.CheckOrder -> CheckOrderName
+        | MessageNames.SumbitOrder -> SumbitOrderName
+        | MessageNames.Reply -> ReplyName
+        | MessageNames.Ping -> PingName
+        | MessageNames.Pong -> PongName
+        | MessageNames.FilterLoad -> FilterLoadName
+        | MessageNames.FilterAdd -> FilterAddName
+        | MessageNames.FilterClear -> FilterClearName
+        | MessageNames.MerkleBlock -> MerkleBlockName
+        | MessageNames.Alert -> AlertName
+        | _ -> UnknownName messageName
 
 type Version106 =
     { AddressFrom: NetworkAddress
@@ -281,6 +281,37 @@ type Alert =
       Comment: string
       StatusBar: string
       Reserved: string }
+    static member Parse offSet buffer =
+        let version, offSet = Conversion.bytesToInt32 offSet buffer
+        let relayUntil, offSet = Conversion.bytesToInt64 offSet buffer
+        let expiration, offSet = Conversion.bytesToInt64 offSet buffer
+        let id, offSet = Conversion.bytesToInt32 offSet buffer
+        let cancel, offSet = Conversion.bytesToInt32 offSet buffer
+        let cancelCount, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let setCancel, offSet =
+            Conversion.parseBuffer buffer offSet (int cancelCount) Conversion.bytesToInt32
+        let minVer, offSet = Conversion.bytesToInt32 offSet buffer
+        let maxVer, offSet = Conversion.bytesToInt32 offSet buffer
+        let subVerCount, offSet = Conversion.decodeVariableLengthInt offSet buffer
+        let setSubVer, offSet =
+            Conversion.parseBuffer buffer offSet (int subVerCount) Conversion.variableLengthStringToString
+        let prioriry, offSet = Conversion.bytesToInt32 offSet buffer
+        let comment, offSet = Conversion.variableLengthStringToString offSet buffer
+        let statusBar, offSet = Conversion.variableLengthStringToString offSet buffer
+        let reserved, offSet = Conversion.variableLengthStringToString offSet buffer
+        { Version = version
+          RelayUntil = relayUntil
+          Expiration = expiration
+          ID = id
+          Cancel = cancel
+          SetCancel = setCancel |> Seq.toArray
+          MinVer = minVer
+          MaxVer = maxVer
+          SetSubVer = setSubVer |> Seq.toArray
+          Priority = prioriry
+          Comment = comment
+          StatusBar = statusBar
+          Reserved = reserved }
 
 
 type Output =
