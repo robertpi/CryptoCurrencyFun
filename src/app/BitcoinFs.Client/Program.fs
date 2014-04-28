@@ -3,6 +3,7 @@ open System.Net
 open System.Text.RegularExpressions
 open BitcoinFs
 open BitcoinFs.Constants
+open BitcoinFs.Messages
 open NLog
 open NLog.Layouts
 open NLog.Targets
@@ -18,6 +19,16 @@ let nslookup dns =
     let matches: seq<Match> = addressRegex.Matches text |> Seq.cast
     matches
     |> Seq.map (fun m -> IPAddress.Parse m.Groups.[1].Value)
+
+let printMessageDetails (ea: MessageReceivedEventArgs) =
+    printfn "Message received %s from %O" ea.Message.MessageNameText ea.Address
+
+let statsOnMessageType (event: IEvent<Handler<MessageReceivedEventArgs>,MessageReceivedEventArgs>) = 
+    event
+    |> Event.map (fun ea -> [ea.Message.MessageNameText])
+    |> Event.histogram
+    |> Event.every 50
+    |> Event.add (printfn "%40A")
 
 [<EntryPoint>]
 let main argv =
@@ -36,11 +47,14 @@ let main argv =
 
     let seedIps = SeedDns.Bitcoin |> Seq.collect nslookup 
     let connMan = new PeerToPeerConnectionManager(MagicNumbers.Bitcoin, Ports.Bitcoin, seedIps)
+
+    connMan.MessageReceived |> statsOnMessageType
+
     connMan.Connect()
 
     System.Console.ReadLine() |> ignore
 
-    //connMan.BroadcastMemPool()
-    //System.Console.ReadLine() |> ignore
+    connMan.Broadcast(MemPool)
+    System.Console.ReadLine() |> ignore
 
     0

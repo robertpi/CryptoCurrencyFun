@@ -323,6 +323,24 @@ type Alert =
           Comment = comment
           StatusBar = statusBar
           Reserved = reserved }
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(x.Version)
+           yield! BitConverter.GetBytes(x.RelayUntil)
+           yield! BitConverter.GetBytes(x.Expiration)
+           yield! BitConverter.GetBytes(x.ID)
+           yield! BitConverter.GetBytes(x.Cancel)
+           yield! Conversion.encodeVariableLengthInt (uint64 x.SetCancel.LongLength)
+           yield! x.SetCancel |> Seq.map BitConverter.GetBytes |> Seq.concat
+           yield! BitConverter.GetBytes(x.MinVer)
+           yield! BitConverter.GetBytes(x.MaxVer)
+           yield! Conversion.encodeVariableLengthInt (uint64 x.SetSubVer.Length)
+           yield! x.SetSubVer |> Seq.map Conversion.stringToVariableLengthString |> Seq.concat
+           yield! BitConverter.GetBytes(x.Priority)
+           yield! Conversion.stringToVariableLengthString x.Comment
+           yield! Conversion.stringToVariableLengthString x.StatusBar
+           yield! Conversion.stringToVariableLengthString x.Reserved |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 
 type Output =
@@ -352,6 +370,10 @@ type Output =
           ParsedOutputScript = parsedScript
           CanonicalOutputScript =  canonicalOutputScript }, 
         offSet
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(x.Value)
+           yield! Conversion.encodeVariableLengthInt x.OutputScriptLength
+           yield! x.OutputScript |]
 
 type Input =
     { InputHash: array<byte>
@@ -390,6 +412,12 @@ type Input =
           ParsedResponseScript = parsedScript
           SequenceNumber = sequenceNumber },
         offSet
+    member x.Serialize() =
+        [| yield! x.InputHash
+           yield! BitConverter.GetBytes(x.InputTransactionIndex)
+           yield! Conversion.encodeVariableLengthInt x.ResponseScriptLength
+           yield! x.ResponseScript
+           yield! BitConverter.GetBytes(x.SequenceNumber) |]
 
 type Transaction = 
     { TransactionVersion: int
@@ -431,6 +459,16 @@ type Transaction =
           LockTime = lockTime
           TransactionHash = transactionHash }, 
         offSet
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(x.TransactionVersion)
+           yield! Conversion.encodeVariableLengthInt x.NumberOfInputs
+           yield! x.Inputs |> Seq.collect (fun x -> x.Serialize()) 
+           yield! Conversion.encodeVariableLengthInt x.NumberOfOutputs
+           yield! x.Outputs |> Seq.collect (fun x -> x.Serialize()) 
+           yield! BitConverter.GetBytes(x.LockTime) 
+           yield! x.TransactionHash |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()
 
 type Block =
     { OffSet: int64
@@ -482,3 +520,14 @@ type Block =
           Transactions = Array.ofList transactions },
         offSet
 
+    member x.Serialize() =
+        [| yield! BitConverter.GetBytes(x.Version)
+           yield! x.Hash
+           yield! x.MerKleRoot
+           yield! BitConverter.GetBytes(Conversion.unixEpocOfDateTime x.Timestamp)
+           yield! BitConverter.GetBytes(x.Target)
+           yield! BitConverter.GetBytes(x.Nonce)
+           yield! Conversion.encodeVariableLengthInt x.NumberOfTransactions
+           yield! x.Transactions |> Seq.collect (fun x -> x.Serialize()) |]
+    interface IBinarySerializable with
+        member x.Serialize() = x.Serialize()

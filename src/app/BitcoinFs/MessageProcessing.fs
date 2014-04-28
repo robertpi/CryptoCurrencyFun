@@ -29,6 +29,10 @@ type internal MessageProcessor(magicNumber) =
         let messageBuffer = message.Serialize()
         x.CreateBufferWithHeaderFromBuffer messageBuffer
 
+    member x.CreateBufferWithHeaderFromMessage (m: Message) =
+        let buffer = m.Serialize()
+        x.CreateBufferWithHeaderFromBuffer buffer m.MessageNameText
+
     member __.CheckMessage (header: RawMessageHeader) totalRead segments =
         if totalRead >= (int header.Length + RawMessageHeader.HeaderLength) then
             let completeBuffer = segments |> Seq.concat |> Seq.toArray

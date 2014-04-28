@@ -50,6 +50,7 @@
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
     <Compile Include="Misc.fs" />
+    <Compile Include="EventExt.fs" />
     <Compile Include="Constants.fs" />
     <Compile Include="Crypto.fs" />
     <Compile Include="Address.fs" />

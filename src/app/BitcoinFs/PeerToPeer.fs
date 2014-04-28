@@ -23,7 +23,7 @@ type MessageReceivedEventArgs(address: IPAddress, message: Message) =
     member x.Address = address
     member x.Message = message
 
-type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as this =
+type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
 
     let logger = LogManager.GetCurrentClassLogger()
 
@@ -70,6 +70,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
                                                     connections.Remove  |> ignore
                                                     return! connectionLoop connections
                                                 | Broadcast buffer ->
+                                                    logger.Debug("about to boardcast")
                                                     broadcast (connections.ToArray()) buffer
                                                     return! connectionLoop connections
                                                 | SendMessage (address, buffer) ->
@@ -221,20 +222,10 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) as 
         startAcceptLoop() |> Async.Start
         openConnections()
 
-    member x.BroadcastMemPool() =
-        let buffer = messageProcessor.CreateBufferWithHeaderFromBuffer [||] MessageNames.MemPool
+    member x.Broadcast message =
+        let buffer = messageProcessor.CreateBufferWithHeaderFromMessage message
+        logger.Debug("got buffer")
         activeSendConnections.Post(Broadcast buffer)
-
-    member x.BroadcastGetAddr() =
-        let buffer = messageProcessor.CreateBufferWithHeaderFromBuffer [||] MessageNames.GetAddr
-        activeSendConnections.Post(Broadcast buffer)
-
-    member x.BroadcastPing() =
-        let ping = PingPong.Create()
-        let buffer = messageProcessor.CreateBufferWithHeader ping MessageNames.GetAddr
-        activeSendConnections.Post(Broadcast buffer)
-
-    // TODO generic boardcast, send to specify node, send to random node methods
 
     [<CLIEvent>]
     member this.MessageReceived = 

@@ -96,6 +96,9 @@ module Conversion =
 
     let unixEpoc = new DateTime(1970, 1, 1)
     let dateTimeOfUnixEpoc (i: int) = unixEpoc.AddSeconds(float i)
+    let unixEpocOfDateTime (d: DateTime) = 
+        let span = d - unixEpoc
+        span.TotalSeconds |> int
 
     let decodeVariableLengthInt startIndex (bytes: byte[]) =
         match bytes.[startIndex] with
