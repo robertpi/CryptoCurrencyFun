@@ -1,4 +1,4 @@
-﻿module BitcoinFs.Crypto
+﻿module CryptoCurrencyFun.Crypto
 open System
 open System.Security.Cryptography
 let Rnd = new Random()

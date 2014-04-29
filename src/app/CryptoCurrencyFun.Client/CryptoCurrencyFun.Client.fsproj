@@ -7,10 +7,10 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>ae645505-8241-4bbf-94d6-f65184769e8f</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>BitcoinFs.Client</RootNamespace>
-    <AssemblyName>BitcoinFs.Client</AssemblyName>
+    <RootNamespace>CryptoCurrencyFun.Client</RootNamespace>
+    <AssemblyName>CryptoCurrencyFun.Client</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <Name>BitcoinFs.Client</Name>
+    <Name>CryptoCurrencyFun.Client</Name>
     <TargetFSharpCoreVersion>4.3.0.0</TargetFSharpCoreVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -22,7 +22,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile>bin\Debug\BitcoinFs.Client.XML</DocumentationFile>
+    <DocumentationFile>bin\Debug\CryptoCurrencyFun.Client.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
@@ -33,7 +33,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile>bin\Release\BitcoinFs.Client.XML</DocumentationFile>
+    <DocumentationFile>bin\Release\CryptoCurrencyFun.Client.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
@@ -53,8 +53,8 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\BitcoinFs\BitcoinFs.fsproj">
-      <Name>BitcoinFs</Name>
+    <ProjectReference Include="..\CryptoCurrencyFun\CryptoCurrencyFun.fsproj">
+      <Name>CryptoCurrencyFun</Name>
       <Project>{d2aaa59c-8762-4f67-9fc2-ad015a4295fb}</Project>
       <Private>True</Private>
     </ProjectReference>

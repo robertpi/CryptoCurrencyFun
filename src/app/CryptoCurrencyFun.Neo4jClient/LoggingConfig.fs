@@ -1,4 +1,4 @@
-module BitcoinFs.Neo4jEtl.LoggingConfig
+module CryptoCurrencyFun.Neo4jEtl.LoggingConfig
 open NLog
 open NLog.Layouts
 open NLog.Targets

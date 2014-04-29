@@ -3,9 +3,9 @@ open System.Collections.Generic
 open System.Collections.Concurrent
 open System.Net
 open System.Text.RegularExpressions
-open BitcoinFs
-open BitcoinFs.Constants
-open BitcoinFs.Messages
+open CryptoCurrencyFun
+open CryptoCurrencyFun.Constants
+open CryptoCurrencyFun.Messages
 open NLog
 open NLog.Layouts
 open NLog.Targets

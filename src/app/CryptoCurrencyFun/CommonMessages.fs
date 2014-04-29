@@ -1,9 +1,9 @@
-﻿namespace BitcoinFs.Messages
+﻿namespace CryptoCurrencyFun.Messages
 open System
 open System.Diagnostics
 open System.Text
 open System.Net
-open BitcoinFs
+open CryptoCurrencyFun
 
 type RawMessageHeader =
     { Magic: uint32      // 4

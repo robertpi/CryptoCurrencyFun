@@ -1,9 +1,9 @@
-﻿namespace BitcoinFs.Messages
+﻿namespace CryptoCurrencyFun.Messages
 open System
 open System.Security.Cryptography
 open NLog
-open BitcoinFs
-open BitcoinFs.Constants
+open CryptoCurrencyFun
+open CryptoCurrencyFun.Constants
 
 module Messages =
     let logger = LogManager.GetLogger("Messages")

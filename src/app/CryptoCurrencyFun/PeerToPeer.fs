@@ -1,12 +1,12 @@
-namespace BitcoinFs
+namespace CryptoCurrencyFun
 open System
 open System.Collections.Generic
 open System.Net
 open System.Net.Sockets
 open System.Security.Cryptography
 open NLog
-open BitcoinFs.Messages
-open BitcoinFs.Constants
+open CryptoCurrencyFun.Messages
+open CryptoCurrencyFun.Constants
 
 type internal SendConnections =
     | Add of Socket

@@ -5,14 +5,13 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{8b5fab13-6c68-4967-8150-08e44a8756f5}</ProjectGuid>
-    <OutputType>Exe</OutputType>
-    <RootNamespace>BitcoinFs.Neo4jClient</RootNamespace>
-    <AssemblyName>BitcoinFs.Neo4jClient</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <Name>BitcoinFs.Neo4jClient</Name>
+    <ProjectGuid>{d2aaa59c-8762-4f67-9fc2-ad015a4295fb}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>CryptoCurrencyFun</RootNamespace>
+    <AssemblyName>CryptoCurrencyFun</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <Name>CryptoCurrencyFun</Name>
     <TargetFSharpCoreVersion>4.3.0.0</TargetFSharpCoreVersion>
-    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,7 +21,7 @@
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>bin\Debug\BitcoinFs.Neo4jClient.XML</DocumentationFile>
+    <DocumentationFile>bin\Debug\CryptoCurrencyFun.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -31,13 +30,13 @@
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>bin\Release\BitcoinFs.Neo4jClient.XML</DocumentationFile>
+    <DocumentationFile>bin\Release\CryptoCurrencyFun.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
   </PropertyGroup>
   <Choose>
-    <When Condition="'$(VisualStudioVersion)' == '11.0'">
+    <When Condition="'$(VisualStudioVersion)' == '11.0' Or $(OS) != 'Windows_NT'">
       <PropertyGroup>
         <FSharpTargetsPath>$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets</FSharpTargetsPath>
       </PropertyGroup>
@@ -50,37 +49,33 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
   <ItemGroup>
-    <Compile Include="Args.fs" />
-    <Compile Include="LoggingConfig.fs" />
-    <Compile Include="Client.fs" />
-    <None Include="app.config" />
+    <Compile Include="Misc.fs" />
+    <Compile Include="EventExt.fs" />
+    <Compile Include="Constants.fs" />
+    <Compile Include="Crypto.fs" />
+    <Compile Include="Address.fs" />
+    <Compile Include="ScriptOps.fs" />
+    <Compile Include="IBinarySerializable.fs" />
+    <Compile Include="ScriptParser.fs" />
+    <Compile Include="CommonMessages.fs" />
+    <Compile Include="Messages.fs" />
+    <Compile Include="Message.fs" />
+    <Compile Include="BitcoinDataDir.fs" />
+    <Compile Include="BlockParser.fs" />
+    <Compile Include="AsyncSockets.fs" />
+    <Compile Include="MessageProcessing.fs" />
+    <Compile Include="PeerToPeer.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
-    <Reference Include="Neo4jClient">
-      <HintPath>..\..\..\lib\Neo4jClient.1.0.0.644\lib\net40\Neo4jClient.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Numerics" />
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\..\..\lib\Newtonsoft.Json.5.0.8\lib\net40\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="UnionArgParser">
-      <HintPath>..\..\..\lib\UnionArgParser.0.5.9\lib\net40\UnionArgParser.dll</HintPath>
-    </Reference>
     <Reference Include="NLog">
       <HintPath>..\..\..\lib\NLog.2.1.0\lib\net40\NLog.dll</HintPath>
     </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\src\app\BitcoinFs\BitcoinFs.fsproj">
-      <Name>BitcoinFs</Name>
-      <Project>{d2aaa59c-8762-4f67-9fc2-ad015a4295fb}</Project>
-      <Private>True</Private>
-    </ProjectReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

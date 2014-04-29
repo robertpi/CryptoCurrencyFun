@@ -7,10 +7,10 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{025096f3-20fb-40f2-8caa-34efda450e87}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>BitCoinFs.UnitTests</RootNamespace>
-    <AssemblyName>BitCoinFs.UnitTests</AssemblyName>
+    <RootNamespace>CryptoCurrencyFun.UnitTests</RootNamespace>
+    <AssemblyName>CryptoCurrencyFun.UnitTests</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <Name>BitCoinFs.UnitTests</Name>
+    <Name>CryptoCurrencyFun.UnitTests</Name>
     <TargetFrameworkProfile />
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
@@ -69,8 +69,8 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\app\BitcoinFs\BitcoinFs.fsproj">
-      <Name>BitcoinFs</Name>
+    <ProjectReference Include="..\..\..\src\app\CryptoCurrencyFun\CryptoCurrencyFun.fsproj">
+      <Name>CryptoCurrencyFun</Name>
       <Project>{d2aaa59c-8762-4f67-9fc2-ad015a4295fb}</Project>
       <Private>True</Private>
     </ProjectReference>

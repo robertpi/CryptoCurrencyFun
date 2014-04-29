@@ -1,4 +1,4 @@
-module BitcoinFs.BlockParserTests
+module CryptoCurrencyFun.BlockParserTests
 
 open System
 open System.Diagnostics
@@ -6,7 +6,7 @@ open System.IO
 open System.Text
 open NUnit.Framework
 open FsUnit
-open BitcoinFs.Messages
+open CryptoCurrencyFun.Messages
 
 // TODO find better place for this helper
 let hexdump (bytes: byte[]) (start: int) (length: int) =

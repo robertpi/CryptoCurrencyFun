@@ -1,4 +1,4 @@
-module BitcoinFs.ScriptParserTests
+module CryptoCurrencyFun.ScriptParserTests
 
 open NUnit.Framework
 open FsUnit

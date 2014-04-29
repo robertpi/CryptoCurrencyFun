@@ -1,4 +1,4 @@
-namespace BitcoinFs.Neo4jEtl
+namespace CryptoCurrencyFun.Neo4jEtl
 open UnionArgParser
 
 type Arguments =

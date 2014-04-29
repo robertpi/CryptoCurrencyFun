@@ -1,4 +1,4 @@
-module BitcoinFs.BitcoinDataDir
+module CryptoCurrencyFun.BitcoinDataDir
 open System.IO
 
 let fileFromOffSet dir offSet =

@@ -1,4 +1,4 @@
-namespace BitcoinFs
+namespace CryptoCurrencyFun
 open System.Text
 
 module ScriptParser =

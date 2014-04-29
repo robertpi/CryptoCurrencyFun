@@ -1,9 +1,9 @@
-namespace BitcoinFs
+namespace CryptoCurrencyFun
 open System.Net
 open System.Security.Cryptography
 open NLog
-open BitcoinFs.Messages
-open BitcoinFs.Constants
+open CryptoCurrencyFun.Messages
+open CryptoCurrencyFun.Constants
 
 type CheckMessageResult =
     | Incomplete

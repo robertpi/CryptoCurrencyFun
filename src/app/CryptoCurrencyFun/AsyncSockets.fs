@@ -1,4 +1,4 @@
-﻿module BitcoinFs.AsyncSockets
+﻿module CryptoCurrencyFun.AsyncSockets
 
 open System
 open System.Net

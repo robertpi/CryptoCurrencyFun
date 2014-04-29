@@ -1,4 +1,4 @@
-﻿namespace BitcoinFs
+﻿namespace CryptoCurrencyFun
 type Op =
     // Constants
     | Op_False                              //0   0x00    Nothing.    (empty value)   An empty array of bytes is pushed onto the stack. (This is not a no-op: an item is added to the stack.)

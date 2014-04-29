@@ -1,4 +1,4 @@
-namespace BitcoinFs.Constants
+namespace CryptoCurrencyFun.Constants
 
 module Global =
     let ProtocolVersion = 70002

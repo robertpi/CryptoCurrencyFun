@@ -1,4 +1,4 @@
-namespace BitcoinFs.Messages
+namespace CryptoCurrencyFun.Messages
 
 type Message =
     | Version of Version

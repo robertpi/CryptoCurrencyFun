@@ -1,9 +1,9 @@
-namespace BitcoinFs
+namespace CryptoCurrencyFun
 open System
 open System.Diagnostics
 open System.Collections.Generic
 open NLog
-open BitcoinFs.Messages
+open CryptoCurrencyFun.Messages
 
 module BlockParser = 
     let logger = LogManager.GetLogger("BlockParser")

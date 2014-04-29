@@ -1,10 +1,10 @@
-namespace BitcoinFs.Neo4jEtl
+namespace CryptoCurrencyFun.Neo4jEtl
 open System
 open System.Linq
 open System.Diagnostics
 open System.Collections.Generic
-open BitcoinFs
-open BitcoinFs.Messages
+open CryptoCurrencyFun
+open CryptoCurrencyFun.Messages
 open Neo4jClient
 open Neo4jClient.Cypher
 open UnionArgParser

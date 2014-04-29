@@ -1,4 +1,4 @@
-namespace BitcoinFs
+namespace CryptoCurrencyFun
 open System
 open System.Numerics
 open System.Text

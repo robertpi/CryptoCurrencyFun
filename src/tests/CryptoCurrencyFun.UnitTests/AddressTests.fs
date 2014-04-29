@@ -1,4 +1,4 @@
-module BitcoinFs.AddressTests
+module CryptoCurrencyFun.AddressTests
 
 open NUnit.Framework
 open FsUnit
