@@ -5,6 +5,7 @@ open System.Diagnostics
 open System.Collections.Generic
 open CryptoCurrencyFun
 open CryptoCurrencyFun.Messages
+open CryptoCurrencyFun.Constants
 open Neo4jClient
 open Neo4jClient.Cypher
 open UnionArgParser
@@ -266,8 +267,8 @@ module LoadBlockChainModel =
         let parser =
             match source with
             | Dir target -> 
-                BlockParserStream.FromDirectory (target, "*.dat", initOffSet = offSet)
-            | File target -> BlockParserStream.FromFile target
+                BlockParserStream.FromDirectory (MagicNumbers.Bitcoin, target, "*.dat", initOffSet = offSet)
+            | File target -> BlockParserStream.FromFile(MagicNumbers.Bitcoin, target) 
         
         let sw = Stopwatch.StartNew() 
         

@@ -5,26 +5,40 @@ open System.Collections.Generic
 open NLog
 open CryptoCurrencyFun.Messages
 
-module BlockParser = 
-    let logger = LogManager.GetLogger("BlockParser")
-    let debug = false
-    let debugOffset = 0 // use in cases where the message doesn't start at begin
+type ErrorHandler =
+    | Propagate
+    | Ignore
+    | Custom of (Exception -> array<byte> -> unit)
 
-    let magicNumber = [| 0xf9uy; 0xbeuy; 0xb4uy; 0xd9uy; |]
+exception BlockParserException of (array<byte> * Exception)
+
+type internal MessageResult =
+    | Message of Block
+    | Error of Exception
+
+type BlockParserStream private (magicNumber, byteStream: seq<byte>, initOffSet) =
+    let logger = LogManager.GetLogger("BlockParser")
+
+    let blockParsedEvent = new Event<Block>()
+    let streamEventEvent = new Event<Unit>()
+    let mutable errorHandler = Propagate
+
+    let getErrorHandler() =
+        match errorHandler with
+        | Propagate -> fun exc message -> raise(BlockParserException(message, exc))
+        | Ignore -> fun _ _ -> ()
+        | Custom func -> func
+
 
     let readMessageHeader (e: IEnumerator<byte>) =
-        let number = Enumerator.take 4 e
-        if number.Length = 0 then -1
+        let numberBytes = Enumerator.take 4 e
+        if numberBytes.Length = 0 then -1
         else
-            let gotMagicNumber = Seq.forall2 (=) magicNumber number
+            let number, _ = Conversion.bytesToUInt32 0 numberBytes
+            let gotMagicNumber = magicNumber = number
             if not gotMagicNumber then failwith "Error expected magicNumber, but it wasn't there"
             let bytesInBlock, _ = Enumerator.take 4 e |> Conversion.bytesToInt32 0
             bytesInBlock
-
-
-    type MessageResult =
-        | Message of Block
-        | Error of Exception
 
     let readMessageHandleError initOffSet messageBuffer =
         try
@@ -63,52 +77,33 @@ module BlockParser =
                       | Error exc -> messageErrorHandler exc messageBuffer 
                   offSet := !offSet + int64 bytesToProcess + 8L }
         
-
-type ErrorHandler =
-    | Propagate
-    | Ignore
-    | Custom of (Exception -> array<byte> -> unit)
-
-exception BlockParserException of (array<byte> * Exception)
-
-type BlockParserStream private (byteStream: seq<byte>, initOffSet) =
-    let blockParsedEvent = new Event<Block>()
-    let streamEventEvent = new Event<Unit>()
-    let mutable errorHandler = Propagate
-
-    let getErrorHandler() =
-        match errorHandler with
-        | Propagate -> fun exc message -> raise(BlockParserException(message, exc))
-        | Ignore -> fun _ _ -> ()
-        | Custom func -> func
-
     member __.NewBlock = blockParsedEvent.Publish
     member __.StreamEnded = streamEventEvent.Publish
     member __.ErrorHandler
         with get() = errorHandler
         and  set x = errorHandler <- x
     member __.StartPush() = 
-        let blocks = BlockParser.readAllMessages initOffSet (getErrorHandler()) byteStream
+        let blocks = readAllMessages initOffSet (getErrorHandler()) byteStream
         for block in blocks do 
             blockParsedEvent.Trigger block
         streamEventEvent.Trigger()
     member __.StartPushBetween startIndex endIndex = 
-        let blocks = BlockParser.readMessages initOffSet startIndex endIndex (getErrorHandler()) byteStream
+        let blocks = readMessages initOffSet startIndex endIndex (getErrorHandler()) byteStream
         for block in blocks do 
             blockParsedEvent.Trigger block
         streamEventEvent.Trigger()
     member __.Pull() = 
-        BlockParser.readAllMessages initOffSet (getErrorHandler()) byteStream
+        readAllMessages initOffSet (getErrorHandler()) byteStream
     member __.PullBetween startIndex endIndex = 
-        BlockParser.readMessages initOffSet startIndex endIndex (getErrorHandler()) byteStream
+        readMessages initOffSet startIndex endIndex (getErrorHandler()) byteStream
 
-    static member FromFile (file: string, ?initOffSet) =
+    static member FromFile (magicNumber, file: string, ?initOffSet) =
         let initOffSet = defaultArg initOffSet 0L
         let stream = File.getByteStream file
-        new BlockParserStream(stream, initOffSet)
-    static member FromDirectory (dir: string, fileSpec: string, ?initOffSet) =
+        new BlockParserStream(magicNumber, stream, initOffSet)
+    static member FromDirectory (magicNumber, dir: string, fileSpec: string, ?initOffSet) =
         let initOffSet = defaultArg initOffSet 0L
         // TODO file spec is ignored
         let stream = BitcoinDataDir.streamFromOffSet dir initOffSet 
-        new BlockParserStream(stream, initOffSet)
+        new BlockParserStream(magicNumber, stream, initOffSet)
 

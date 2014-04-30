@@ -7,6 +7,7 @@ open System.Text
 open NUnit.Framework
 open FsUnit
 open CryptoCurrencyFun.Messages
+open CryptoCurrencyFun.Constants
 
 // TODO find better place for this helper
 let hexdump (bytes: byte[]) (start: int) (length: int) =
@@ -42,7 +43,7 @@ let hexdump (bytes: byte[]) (start: int) (length: int) =
 let shouldReadFirstThreeMessages() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
-    let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
+    let parser = BlockParserStream.FromFile(MagicNumbers.Bitcoin, target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
     let blocks = parser.PullBetween 0 3
     printfn "%A" blocks
     for block in blocks |> Seq.skip 1 do
@@ -55,7 +56,7 @@ let shouldReadFirstThreeMessages() =
 let shouldReadMessagesFourToFive() =
     let target = "/home/robert/.bitcoin/blocks/blk00000.dat"
 
-    let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
+    let parser = BlockParserStream.FromFile(MagicNumbers.Bitcoin, target, ErrorHandler =  Custom (fun ex _ -> printfn "%O" ex)) 
     let blocks = parser.PullBetween 3 4
     printfn "%A" blocks
 
@@ -78,7 +79,7 @@ let writeErrorFile e message =
 let readAllMessagesSummarizeNonCanonical() =
     let target, spec = "/home/robert/.bitcoin/blocks", "*.dat"
     let timer = Stopwatch.StartNew()
-    let parser = BlockParserStream.FromFile(target, ErrorHandler =  Custom writeErrorFile) 
+    let parser = BlockParserStream.FromFile(MagicNumbers.Bitcoin, target, ErrorHandler =  Custom writeErrorFile) 
     let blocks = parser.Pull()
     let blockCounter = ref 0
     let payToAddress = ref 0
