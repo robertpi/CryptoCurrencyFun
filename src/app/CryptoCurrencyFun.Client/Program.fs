@@ -126,8 +126,8 @@ let main argv =
 
     LogManager.Configuration <- config
 
-    let seedIps = SeedDns.Litecoin |> Seq.collect nslookup 
-    let connMan = new PeerToPeerConnectionManager(MagicNumbers.Litecoin, Ports.Litecoin, seedIps)
+    let seedIps = SeedDns.Dogecoin |> Seq.collect nslookup 
+    let connMan = new PeerToPeerConnectionManager(MagicNumbers.Dogecoin, Ports.Dogecoin, seedIps)
 
     //connMan.MessageReceived |> statsOnMessageType
 

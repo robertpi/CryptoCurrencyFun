@@ -12,6 +12,9 @@ module MagicNumbers =
     let Litecoin = 0xDBB6C0FBu
     let LitecoinTestnet = 0xDCB7C1FCu
 
+    let Dogecoin = 0xC0C0C0C0u
+    let DogecoinTestnet = 0xDCB7C1FCu
+
 module Ports =
     let Bitcoin = 8333
     let BitcoinTestnet = 18333
@@ -19,6 +22,8 @@ module Ports =
     let Namecoin  = 8332
 
     let Litecoin = 9333
+
+    let Dogecoin = 22556
 
 module SeedDns =
     let Bitcoin =
@@ -34,3 +39,9 @@ module SeedDns =
         "dnsseed.ltc.xurious.com";
         "dnsseed.koin-project.com";
         "dnsseed.weminemnc.com" ]
+
+    let Dogecoin =
+      [ "seed.dogecoin.com"; 
+        "seed.dogechain.info";
+        "seed.mophides.com";
+        "seed.dglibrary.org" ]

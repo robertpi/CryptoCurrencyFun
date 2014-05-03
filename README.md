@@ -1,2 +1,2 @@
-BitcoinFs
+CryptoCurrencyFun
 =========
