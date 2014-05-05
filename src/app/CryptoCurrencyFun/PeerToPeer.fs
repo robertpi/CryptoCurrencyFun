@@ -14,11 +14,6 @@ type internal SendConnections =
     | Broadcast of byte[]
     | SendMessage of IPAddress * byte[]
 
-module internal PeerToPeerHelpers =
-    let findInitalPeers seedDnses =
-        seedDnses
-        |> Seq.collect (fun dns -> Dns.GetHostAddresses(dns))
-
 type MessageReceivedEventArgs(address: IPAddress, message: Message) =
     inherit EventArgs()
     member x.Address = address
@@ -32,11 +27,11 @@ type internal ConnectionDetails =
           LastPing = DateTime.MinValue }
 
 
-type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
+type PeerToPeerConnectionManager(connDetails: NetworkDescription) =
 
     let logger = LogManager.GetCurrentClassLogger()
 
-    let messageProcessor =  new MessageProcessor(magicNumber)
+    let messageProcessor =  new MessageProcessor(connDetails.MagicNumber)
 
     let toMessageRecivedEA (address, message) = new MessageReceivedEventArgs(address, message)
 
@@ -163,7 +158,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
     let createAndStoreConnection address =
         async { try
                     logger.Info(sprintf "trying to connect to %O" address)
-                    let! conn = AsyncSockets.OpenSendSocket address port
+                    let! conn = AsyncSockets.OpenSendSocket address connDetails.Port
                     if conn.Connected then
                         activeSendConnections.Post (Add conn)
                         let addressRemote, portRemote = getRemoteAddress conn
@@ -185,7 +180,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
         let address = Dns.GetHostAddresses(Dns.GetHostName())
         let ipAddress = address.[0];
         let socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
-        let localEndPoint = new IPEndPoint(ipAddress, port);
+        let localEndPoint = new IPEndPoint(ipAddress, connDetails.Port);
         socket.Bind(localEndPoint)
         socket.Listen(100)
         let rec loop() =
@@ -200,7 +195,7 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
         loop()
 
     let openConnections() =
-        seedIps
+        connDetails.GetIPAddresses()
         |> Seq.map createAndStoreConnection
         |> Async.Parallel
         |> Async.Ignore
@@ -238,8 +233,6 @@ type PeerToPeerConnectionManager(magicNumber, port, seedIps: seq<IPAddress>) =
         | Unknown (name, buffer) -> ()
 
     do messageProcessor.MessageReceived |> Event.add handleMessage
-
-    new (magicNumber, port, seedDnses) = PeerToPeerConnectionManager(magicNumber, port, PeerToPeerHelpers.findInitalPeers seedDnses)
 
     // TOOD need a way to specify whether we should limit connections or try to maximize them
     member x.Connect() =

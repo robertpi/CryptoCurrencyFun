@@ -11,20 +11,6 @@ open NLog.Layouts
 open NLog.Targets
 open NLog.Config
 
-let reduceSeedHostList = [ "seed.bitcoin.sipa.be" ]
-
-let addressRegex = new Regex("Address: (.+)")
-
-let nslookup dns =
-    let nsProd = Process.Start(new ProcessStartInfo ("nslookup", dns, UseShellExecute = false, RedirectStandardOutput = true))
-    let text = nsProd.StandardOutput.ReadToEnd()
-    let matches: seq<Match> = addressRegex.Matches text |> Seq.cast
-    matches
-    |> Seq.map (fun m -> IPAddress.Parse m.Groups.[1].Value)
-
-// --------------------------------
-
-
 let printMessageDetails (ea: MessageReceivedEventArgs) =
     printfn "Message received %s from %O" ea.Message.MessageNameText ea.Address
 
@@ -126,8 +112,11 @@ let main argv =
 
     LogManager.Configuration <- config
 
-    let seedIps = SeedDns.Dogecoin |> Seq.collect nslookup 
-    let connMan = new PeerToPeerConnectionManager(MagicNumbers.Dogecoin, Ports.Dogecoin, seedIps)
+    let connDetails = 
+        { NetworkDetails.Bitcoin with
+            DnsResolution = Connection.shellNslookup Connection.resolvedAddressRegex }
+
+    let connMan = new PeerToPeerConnectionManager(connDetails)
 
     //connMan.MessageReceived |> statsOnMessageType
 
