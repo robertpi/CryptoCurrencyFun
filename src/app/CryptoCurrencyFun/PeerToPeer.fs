@@ -61,45 +61,48 @@ type PeerToPeerConnectionManager(connDetails: NetworkDescription) =
             sendMessage socket buffer
 
     // TODO any network connection  that throws an exception
-    // TODO store meta data about the connections, including last ping, verack
+    let makeConnectionLoop (box: MailboxProcessor<_>) =
+        let rec connectionLoop (connections: Dictionary<IPAddress, ConnectionDetails>) =
+            async { try
+                        let! msg = box.Receive()
+                        let deadSockets = 
+                            connections 
+                            |> Seq.filter (fun x -> not x.Value.Socket.Connected)
+                            |> Seq.toList
+                        for deadSocket in deadSockets do
+                            connections.Remove(deadSocket.Key) |> ignore
+                        match msg with
+                        | Add socket ->
+                            let cd = ConnectionDetails.Create socket 
+                            let ip, _ = getRemoteAddress socket
+                            connections.Add(ip, cd)
+                            return! connectionLoop connections
+                        | Remove socket -> 
+                            // TODO this could fail, try removing by socket reference if it does
+                            let ip, _ = getRemoteAddress socket
+                            connections.Remove ip  |> ignore
+                            return! connectionLoop connections
+                        | Broadcast buffer ->
+                            let sockets =
+                                connections.Values |> Seq.map (fun x -> x.Socket) |> Seq.toArray
+                            broadcast sockets buffer
+                            return! connectionLoop connections
+                        | SendMessage (address, buffer) ->
+                            let succes, socket = 
+                                connections.TryGetValue(address) 
+                            match succes with
+                            | true -> sendMessage socket.Socket buffer
+                            | false -> logger.Error(sprintf "failed to send message to %O" address)
+                            return! connectionLoop connections
+                    with ex ->
+                        logger.Warn(sprintf "SAVED event loop from %O" ex)
+                        // TODO check if it's network excpetion and remove socket
+                        return! connectionLoop connections }
+        connectionLoop
+
     let activeSendConnections =
         MailboxProcessor.Start(fun box ->
-                                    let rec connectionLoop (connections: Dictionary<IPAddress, ConnectionDetails>) =
-                                        async { try
-                                                    let! msg = box.Receive()
-                                                    let deadSockets = 
-                                                        connections 
-                                                        |> Seq.filter (fun x -> not x.Value.Socket.Connected)
-                                                        |> Seq.toList
-                                                    for deadSocket in deadSockets do
-                                                        connections.Remove(deadSocket.Key) |> ignore
-                                                    match msg with
-                                                    | Add socket ->
-                                                        let cd = ConnectionDetails.Create socket 
-                                                        let ip, _ = getRemoteAddress socket
-                                                        connections.Add(ip, cd)
-                                                        return! connectionLoop connections
-                                                    | Remove socket -> 
-                                                        // TODO this could fail, try removing by socket reference if it does
-                                                        let ip, _ = getRemoteAddress socket
-                                                        connections.Remove ip  |> ignore
-                                                        return! connectionLoop connections
-                                                    | Broadcast buffer ->
-                                                        let sockets =
-                                                            connections.Values |> Seq.map (fun x -> x.Socket) |> Seq.toArray
-                                                        broadcast sockets buffer
-                                                        return! connectionLoop connections
-                                                    | SendMessage (address, buffer) ->
-                                                        let succes, socket = 
-                                                            connections.TryGetValue(address) 
-                                                        match succes with
-                                                        | true -> sendMessage socket.Socket buffer
-                                                        | false -> logger.Error(sprintf "failed to send message to %O" address)
-                                                        return! connectionLoop connections
-                                                with ex ->
-                                                    logger.Warn(sprintf "SAVED event loop from %O" ex)
-                                                    // TODO check if it's network excpetion and remove socket
-                                                    return! connectionLoop connections }
+                                    let connectionLoop = makeConnectionLoop box
                                     connectionLoop (new Dictionary<IPAddress, ConnectionDetails>()))
 
     let sendMessageTo address messageBuffer =
