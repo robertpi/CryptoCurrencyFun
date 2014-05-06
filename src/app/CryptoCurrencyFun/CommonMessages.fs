@@ -52,6 +52,8 @@ type NetworkAddress =
       Service: uint64
       Address: byte[]
       Port: uint16 }
+    member x.GetIPAddress() =
+        new IPAddress(x.Address)    
     member x.Serialize() =
         let timestampBits = 
             match x.Timestamp with 

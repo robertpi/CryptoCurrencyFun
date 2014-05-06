@@ -14,6 +14,7 @@ type internal SendConnections =
     | Broadcast of byte[]
     | SendMessage of IPAddress * byte[]
     | ConnectFailed of IPAddress
+    | NewAddresses of seq<IPAddress * int>
 
 type MessageReceivedEventArgs(address: IPAddress, message: Message) =
     inherit EventArgs()
@@ -200,6 +201,12 @@ type PeerToPeerConnectionManager(connDetails: NetworkDescription, ?maxConnection
                         | Some(ConnectFailed address) ->
                             pendding.Remove address |> ignore
                             return! connectionLoop ()
+                        | Some(NewAddresses addresses) ->
+                            for address, port in addresses do
+                                if not (connections.ContainsKey address && pendding.Contains address) then
+                                    // TODO ignoring port for now, will connect on default port
+                                    addressQueue.Enqueue address
+                            return! connectionLoop ()
                         | None ->
                             return! connectionLoop ()
                     with ex ->
@@ -241,7 +248,11 @@ type PeerToPeerConnectionManager(connDetails: NetworkDescription, ?maxConnection
             let verack = messageProcessor.CreateBufferWithHeaderFromBuffer [||] MessageNames.Verack
             sendMessageTo address verack 
         | Verack -> ()
-        | Addr address -> ()
+        | Addr address ->
+            let addresses = 
+                seq { for addr in address.AddressList do
+                        yield (addr.GetIPAddress(), int addr.Port) }
+            activeConnections.Post(NewAddresses addresses)
         | Inv invDetails -> ()
         | GetData invDetails -> ()
         | NotFound invDetails -> ()
