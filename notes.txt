@@ -1,0 +1,5 @@
+pchMessageStart: holds the network id (magic number)
+GetDefaultPort: hold the default port number (litecoin)  
+nDefaultPort: hold the default port number (bitcoin) 
+strMainNetDNSSeed/strTestNetDNSSeed: holds the seen dns strings 
+
