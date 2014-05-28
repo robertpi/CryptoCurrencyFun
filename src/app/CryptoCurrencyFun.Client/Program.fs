@@ -1,4 +1,5 @@
-﻿open System.Diagnostics
+﻿open System
+open System.Diagnostics
 open System.Collections.Generic
 open System.Collections.Concurrent
 open System.Net
@@ -99,6 +100,10 @@ let handleTransMessage (ea: MessageReceivedEventArgs) =
 
 [<EntryPoint>]
 let main argv =
+
+    AppDomain.CurrentDomain.UnhandledException 
+    |> Event.add (fun x -> printfn "Got exception: %O" x.ExceptionObject)
+
     let config = new LoggingConfiguration()
 
     let layout = new SimpleLayout(@"${date:yyyy--gMM-ddTHH\:mm\:ss} ${logger} ${message}")
@@ -116,7 +121,7 @@ let main argv =
         { NetworkDetails.Bitcoin with
             DnsResolution = Connection.shellNslookup Connection.resolvedAddressRegex }
 
-    let connMan = new PeerToPeerConnectionManager(connDetails)
+    let connMan = new PeerToPeerConnectionManager(connDetails, 100)
 
     //connMan.MessageReceived |> statsOnMessageType
 
