@@ -125,8 +125,14 @@ let main argv =
 
     //connMan.MessageReceived |> statsOnMessageType
 
-    connMan.MessageReceived |> (testGetData connMan)
-    connMan.MessageReceived |> Event.add handleTransMessage
+    //connMan.MessageReceived |> (testGetData connMan)
+    //connMan.MessageReceived |> Event.add handleTransMessage
+
+    let memPool = new MemoryPool(connMan)
+
+    memPool.NewTransaction |> Event.add (fun ea -> printfn "New transaction: %A" ea.Transaction)
+    //memPool.NewTransactionLocation |> Event.add (fun ea -> printfn "New transaction location: %O - %s" ea.Location ea.TransactionHash)
+    memPool.NewBlock |> Event.add (fun ea -> printfn "New block: %A" ea.Block)
 
     connMan.Connect()
 

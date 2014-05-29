@@ -427,6 +427,10 @@ type Transaction =
       Outputs: array<Output>
       LockTime: int
       TransactionHash: array<byte> }
+
+    member x.TransactionHashAsString =
+        Conversion.littleEndianBytesToHexString x.TransactionHash
+
     static member Parse offSet buffer =
         let initalOffSet = offSet
 
@@ -459,6 +463,7 @@ type Transaction =
           LockTime = lockTime
           TransactionHash = transactionHash }, 
         offSet
+
     member x.Serialize() =
         [| yield! BitConverter.GetBytes(x.TransactionVersion)
            yield! Conversion.encodeVariableLengthInt x.NumberOfInputs

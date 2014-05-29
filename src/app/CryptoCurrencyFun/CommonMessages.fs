@@ -104,6 +104,9 @@ type InventoryVectorType =
 type InventoryVector =
     { Type: InventoryVectorType
       Hash: byte[] }
+    member x.HashAsString =
+        Conversion.littleEndianBytesToHexString x.Hash
+        
     static member Create t hash  =
       { Type = t
         Hash = hash }

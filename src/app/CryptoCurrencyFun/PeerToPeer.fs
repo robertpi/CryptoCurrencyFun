@@ -173,7 +173,7 @@ type PeerToPeerConnectionManager(connDetails: NetworkDescription, ?maxConnection
                             |> Seq.toList
                         for deadSocket in deadSockets do
                             connections.Remove(deadSocket.Key) |> ignore
-                        logger.Debug(sprintf "Active connnections %i" connections.Count)
+                        //logger.Debug(sprintf "Active connnections %i" connections.Count)
                         match msg with
                         | Some(Add socket) ->
                             let cd = ConnectionDetails.Create socket 
