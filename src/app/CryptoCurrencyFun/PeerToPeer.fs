@@ -28,6 +28,14 @@ type internal ConnectionDetails =
         { Socket = s
           LastPing = DateTime.MinValue }
 
+type IPeerToPeerConnectionManager =
+    abstract Connect: unit -> unit
+    abstract Broadcast: Message -> unit
+    abstract SendTo: IPAddress -> Message -> unit
+    [<CLIEvent>]
+    abstract MessageReceived: IEvent<MessageReceivedEventArgs>
+
+
 type PeerToPeerConnectionManager(connDetails: NetworkDescription, ?maxConnections) =
 
     let logger = LogManager.GetCurrentClassLogger()
@@ -292,6 +300,13 @@ type PeerToPeerConnectionManager(connDetails: NetworkDescription, ?maxConnection
         sendMessageTo address buffer
 
     [<CLIEvent>]
-    member this.MessageReceived = 
+    member x.MessageReceived = 
         messageProcessor.MessageReceived
         |> Event.map toMessageRecivedEA
+
+    interface IPeerToPeerConnectionManager with 
+        member x.Connect() = x.Connect()
+        member x.Broadcast message = x.Broadcast message
+        member x.SendTo address message = x.SendTo address message
+        [<CLIEvent>]
+        member x.MessageReceived = x.MessageReceived

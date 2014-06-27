@@ -31,7 +31,7 @@ type internal TransactionDetails =
 
 // TODO really needs a place to store the block chain to work properly
 
-type MemoryPool(conn: PeerToPeerConnectionManager) =
+type MemoryPool(conn: IPeerToPeerConnectionManager) =
     let maxConcurrentSearches = 5
 
     let transations = new ConcurrentDictionary<string, TransactionDetails>()
