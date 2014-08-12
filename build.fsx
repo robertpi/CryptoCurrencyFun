@@ -13,6 +13,11 @@ let appReferences  =
 
 let testReferences = !! "src/tests/**/*.fsproj"
 
+
+Target "Start" (fun _ -> 
+    ()
+)
+
 // The clean target cleans the build and deploy folders
 Target "Clean" (fun _ -> 
     CleanDirs [buildDir; testDir]
@@ -41,7 +46,8 @@ Target "NUnitTest" (fun _ ->
 )
 
 // Build order
-"Clean"
+"Start"
+  =?> ("Clean", hasBuildParam "Clean")
   ==> "BuildApp"
   ==> "BuildTest"
   ==> "NUnitTest"
